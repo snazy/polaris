@@ -25,14 +25,27 @@ COPY . /app
 WORKDIR /app
 RUN rm -rf build
 
-# Build the rest catalog
-RUN ./gradlew --no-daemon shadowJar
+ARG BUILDUSER_UID=1042
+ARG BUILDUSER_GID=1042
+ARG BUILDUSER_NAME=builduser
+
+RUN id
+RUN id -u
+RUN id -h
+
+#RUN sudo groupadd -g $BUILDUSER_GID -o $BUILDUSER_NAME
+#RUN sudo useradd -u $BUILDUSER_UID -g $BUILDUSER_GID -o -s /bin/bash $BUILDUSER_NAME
+#USER $BUILDUSER_NAME
+
+# Build Polaris
+RUN ./gradlew --no-daemon --info shadowJar --stacktrace
 
 FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.20-2.1721752928
 WORKDIR /app
 COPY --from=build /app/polaris-service/build/libs/polaris-service-1.0.0-all.jar /app
 COPY --from=build /app/polaris-server.yml /app
 
+#
 EXPOSE 8181
 
 # Run the resulting java binary
