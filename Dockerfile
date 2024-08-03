@@ -14,7 +14,9 @@
 # limitations under the License.
 #
 # Base Image
-FROM gradle:8.6-jdk21 as build
+# Not using an image from docker.io, because that has quite strict request
+# rate and bandwidth shaping policies.
+FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.20-2.1721752928 as build
 
 # Copy the REST catalog into the container
 COPY . /app
@@ -24,9 +26,9 @@ WORKDIR /app
 RUN rm -rf build
 
 # Build the rest catalog
-RUN gradle --no-daemon --info shadowJar
+RUN ./gradlew --no-daemon shadowJar
 
-FROM openjdk:21
+FROM registry.access.redhat.com/ubi9/openjdk-21-runtime:1.20-2.1721752928
 WORKDIR /app
 COPY --from=build /app/polaris-service/build/libs/polaris-service-1.0.0-all.jar /app
 COPY --from=build /app/polaris-server.yml /app
