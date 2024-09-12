@@ -1,4 +1,4 @@
----
+#!/usr/bin/env bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,16 +17,21 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-title: 'POLARIS VERSION INDEX MD TEMPLATE'
-toc_hide: true
-hide_summary: true
-cascade:
-  # The latest release specifies 'false', all others must be 'true'
-  exclude_search: false
-# This file will be copied as `_index.md` into a new release's versioned docs folder.
-# RELEASE_INDEX_MARKER_DO_NOT_CHANGE
----
 
-== Apache Polaris version {{< releaseVersion >}}
+# Create a new release version branch
+#
+# If called on the main branch, creates the release branch for the next major version.
+# If called on a version branch, the tool errors out.
 
-Download from ...
+set -e
+bin_dir="$(dirname "$0")"
+. "${bin_dir}/_releases_lib.sh"
+
+echo ""
+echo "List of release branches:"
+
+list_release_branches "" "" | while read release_branch_name ;do
+  _major="$(major_version_from_branch_name "${release_branch_name}")"
+  _minor="$(minor_version_from_branch_name "${release_branch_name}")"
+  echo "Release branch for ${_major}.${_minor} is ${release_branch_name}"
+done
