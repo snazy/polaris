@@ -18,6 +18,9 @@
  */
 package org.apache.polaris.docs.generator;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import com.sun.source.doctree.DocCommentTree;
 import io.smallrye.config.ConfigMappingInterface.Property;
 import java.net.URI;

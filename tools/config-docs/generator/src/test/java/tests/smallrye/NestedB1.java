@@ -18,6 +18,9 @@
  */
 package tests.smallrye;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 public interface NestedB1 extends NestedA11, NestedB12 {
   /** B1. */
   int nestedB1();

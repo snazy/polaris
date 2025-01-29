@@ -18,6 +18,9 @@
  */
 package org.apache.polaris.docs.generator;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import java.util.HashMap;
 import java.util.Map;
 import javax.lang.model.element.ElementVisitor;

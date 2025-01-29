@@ -19,6 +19,9 @@
 
 package publishing
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import io.github.gradlenexus.publishplugin.NexusPublishExtension
 import io.github.gradlenexus.publishplugin.NexusPublishPlugin
 import io.github.gradlenexus.publishplugin.internal.StagingRepositoryDescriptorRegistryBuildService

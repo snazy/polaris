@@ -18,6 +18,9 @@
  */
 package org.apache.polaris.service.it.test;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import static org.apache.polaris.service.it.env.PolarisClient.polarisClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

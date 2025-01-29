@@ -19,6 +19,9 @@
 
 package publishing
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import groovy.json.JsonException
 import groovy.json.JsonSlurper
 import groovy.util.Node

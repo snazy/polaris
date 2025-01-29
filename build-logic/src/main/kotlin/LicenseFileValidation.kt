@@ -23,6 +23,9 @@ import com.github.jk1.license.filter.DependencyFilter
 import java.io.File
 import org.gradle.api.GradleException
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 /**
  * Validates that all dependencies with MIT/BSD/Go/UPL/ISC licenses, and Apache license, are
  * mentioned in the `LICENSE` file.

@@ -19,6 +19,9 @@
 
 package publishing
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.java.archives.Attributes

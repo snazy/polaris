@@ -19,6 +19,9 @@
 
 package publishing
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import java.io.File
 import javax.inject.Inject
 import org.gradle.api.Project

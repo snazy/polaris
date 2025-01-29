@@ -18,6 +18,9 @@
  */
 package org.apache.polaris.docs.generator;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import static javax.tools.DocumentationTool.Location.DOCUMENTATION_OUTPUT;
 import static javax.tools.JavaFileObject.Kind.SOURCE;
 import static javax.tools.StandardLocation.CLASS_PATH;

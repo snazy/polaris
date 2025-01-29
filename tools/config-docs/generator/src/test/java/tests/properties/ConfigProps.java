@@ -18,6 +18,9 @@
  */
 package tests.properties;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import org.apache.polaris.docs.ConfigDocs.ConfigItem;
 import org.apache.polaris.docs.ConfigDocs.ConfigPageGroup;
 

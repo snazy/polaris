@@ -25,6 +25,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 Note that this template is copied /modified from
 https://github.com/OpenAPITools/openapi-generator/blob/640ef9d9448a4a008af90eca9cc84c8a78ec87ec/modules/openapi-generator/src/main/resources/JavaJaxRS/resteasy/pojo.mustache
 It is updated to remove all swagger annotations and support builders and immutability
+
+Marker for Polaris LICENSE file - keep it
+CODE_COPIED_TO_POLARIS
 }}
 
 {{#description}}@ApiModel(description="{{{.}}}"){{/description}}{{>additionalModelTypeAnnotations}}{{>generatedAnnotation}}{{#discriminator}}{{>typeInfoAnnotation}}{{/discriminator}}{{#vendorExtensions.x-class-extra-annotation}}

@@ -18,6 +18,9 @@
  */
 package tests.smallrye;
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import java.time.Duration;
 
 public interface InterfaceOne extends InterfaceTwo {

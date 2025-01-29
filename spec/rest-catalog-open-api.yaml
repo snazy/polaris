@@ -17,6 +17,9 @@
 # under the License.
 #
 
+# Marker for Polaris LICENSE file - keep it
+# CODE_COPIED_TO_POLARIS
+
 ---
 openapi: 3.0.3
 info:

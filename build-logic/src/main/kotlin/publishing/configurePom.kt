@@ -19,6 +19,9 @@
 
 package publishing
 
+// Marker for Polaris LICENSE file - keep it
+// CODE_COPIED_TO_POLARIS
+
 import groovy.util.Node
 import org.gradle.api.Project
 import org.gradle.api.Task
