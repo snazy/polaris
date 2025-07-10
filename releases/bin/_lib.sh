@@ -176,7 +176,8 @@ function rc_iteration_from_tag {
 }
 
 function _get_max_patch_version {
-  max_patch=-1
+  local max_patch=-1
+  local _patch
   while read -r release_tag_name ; do
     _patch="$(patch_version_from_rc_tag "${release_tag_name}")"
     [[ $_patch -gt $max_patch ]] && max_patch=$_patch
@@ -193,7 +194,8 @@ function get_max_patch_version {
 }
 
 function _get_max_rc_iteration {
-  max_rc=-1
+  local max_rc=-1
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -212,6 +214,7 @@ function get_max_rc_iteration {
 }
 
 function _tag_for_full_version {
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -228,8 +231,9 @@ function tag_for_full_version {
 }
 
 function _get_latest_rc_tag_name {
-  max_rc=-1
-  tag=""
+  local max_rc=-1
+  local tag=""
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -251,7 +255,8 @@ function get_latest_rc_tag_name {
 }
 
 function _get_max_major_version {
-  max_major=-1
+  local max_major=-1
+  local _major
   while read -r release_branch_name ; do
     _major="$(major_version_from_branch_name "${release_branch_name}")"
     [[ $_major -gt $max_major ]] && max_major=$_major
@@ -264,7 +269,8 @@ function get_max_major_version {
 }
 
 function _get_max_minor_version {
-  max_minor=-1
+  local max_minor=-1
+  local _minor
   while read -r release_branch_name ;do
     _minor="$(minor_version_from_branch_name "${release_branch_name}")"
     [[ $_minor -gt $max_minor ]] && max_minor=$_minor
