@@ -23,6 +23,11 @@ bin_dir="$(dirname "$0")"
 command_name="$(basename "$0")"
 . "${bin_dir}/_releases_lib.sh"
 
+# Initialize release environment
+setup_branch_info
+ensure_branch_has_upstream
+ensure_no_uncommitted_changes
+
 # shellcheck disable=SC2154
 echo "Version in version.txt is '$version_txt'"
 # shellcheck disable=SC2154
