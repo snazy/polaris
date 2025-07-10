@@ -25,7 +25,7 @@
 
 set -e
 bin_dir="$(dirname "$0")"
-. "${bin_dir}/_releases_lib.sh"
+. "${bin_dir}/_lib.sh"
 
 # Initialize release environment
 setup_branch_info
