@@ -176,7 +176,8 @@ function rc_iteration_from_tag {
 }
 
 function _get_max_patch_version {
-  max_patch=-1
+  local max_patch=-1
+  local _patch
   while read -r release_tag_name ; do
     _patch="$(patch_version_from_rc_tag "${release_tag_name}")"
     [[ $_patch -gt $max_patch ]] && max_patch=$_patch
@@ -193,7 +194,8 @@ function get_max_patch_version {
 }
 
 function _get_max_rc_iteration {
-  max_rc=-1
+  local max_rc=-1
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -212,6 +214,7 @@ function get_max_rc_iteration {
 }
 
 function _tag_for_full_version {
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -228,8 +231,9 @@ function tag_for_full_version {
 }
 
 function _get_latest_rc_tag_name {
-  max_rc=-1
-  tag=""
+  local max_rc=-1
+  local tag=""
+  local _rc
   while read -r release_tag_name ; do
     _rc="$(rc_iteration_from_tag "${release_tag_name}")"
     if [[ -z ${_rc} ]]; then
@@ -251,7 +255,8 @@ function get_latest_rc_tag_name {
 }
 
 function _get_max_major_version {
-  max_major=-1
+  local max_major=-1
+  local _major
   while read -r release_branch_name ; do
     _major="$(major_version_from_branch_name "${release_branch_name}")"
     [[ $_major -gt $max_major ]] && max_major=$_major
@@ -264,7 +269,8 @@ function get_max_major_version {
 }
 
 function _get_max_minor_version {
-  max_minor=-1
+  local max_minor=-1
+  local _minor
   while read -r release_branch_name ;do
     _minor="$(minor_version_from_branch_name "${release_branch_name}")"
     [[ $_minor -gt $max_minor ]] && max_minor=$_minor
@@ -274,4 +280,36 @@ function _get_max_minor_version {
 
 function get_max_minor_version {
   _get_max_minor_version < <(list_release_branches "${version_major}")
+}
+
+# This function defines the following variables based on the current branch:
+# - branch_type: "main", "major" or "minor"
+# - version_major: major version number (if the current branch is not main)
+# - version_minor: minor version number (if the current branch is not main)
+function setup_branch_info() {
+    if [[ "${current_branch}" == "${main_branch}" ]]; then
+        branch_type="main"
+    elif echo "${current_branch}" | grep --extended-regexp --quiet "${release_branch_regex}"; then
+        version_major="$(major_version_from_branch_name "${current_branch}")"
+        version_minor="$(minor_version_from_branch_name "${current_branch}")"
+        [[ "x" == "${version_minor}" ]] && branch_type="major" || branch_type="minor"
+    else
+        echo "Current branch '${current_branch}' must be either the main branch '${main_branch}' or a release branch following exactly the pattern '${release_branch_prefix}<MAJOR>.<MINOR>', aborting" > /dev/stderr
+        return 1
+    fi
+}
+
+function ensure_branch_has_upstream() {
+    if [[ -z ${upstream_name} ]]; then
+        echo "Current branch '${current_branch}' has no remote, aborting" > /dev/stderr
+        return 1
+    fi
+}
+
+function ensure_no_uncommitted_changes() {
+    if [[ -n "$(git status --untracked-files=no --porcelain)" ]]; then
+        echo "Current worktree has uncommitted changes, aborting" > /dev/stderr
+        git status --untracked-files=no --porcelain > /dev/stderr
+        return 1
+    fi
 }

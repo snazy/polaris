@@ -25,7 +25,12 @@
 
 set -e
 bin_dir="$(dirname "$0")"
-. "${bin_dir}/_releases_lib.sh"
+. "${bin_dir}/_lib.sh"
+
+# Initialize release environment
+setup_branch_info
+ensure_branch_has_upstream
+ensure_no_uncommitted_changes
 
 # shellcheck disable=SC2154
 echo "Release Git remote name '${upstream_name}'"

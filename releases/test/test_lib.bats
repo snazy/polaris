@@ -41,26 +41,73 @@ setup() {
 }
 
 # shellcheck disable=SC2034
-@test "list_release_branches" {
+@test "list_release_branches without specific filter" {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
-  run list_release_branches "" ""
-  assert_line "release/0.9.x"
+  . "$RELEASE_BIN/_lib.sh"
+  run list_release_branches ""
+  assert_line "release/1.0.x"
   assert_success
 }
 
 # shellcheck disable=SC2034
-@test "list_release_tags no prefix" {
+@test "list_release_branches with filter" {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
+  run list_release_branches "1.0"
+  assert_line "release/1.0.x"
+  assert_success
+}
+
+# shellcheck disable=SC2034
+@test "list_release_tags without specific filter" {
+  bin_dir="${RELEASE_BIN}"
+  command_name="test_libs"
+
+  . "$RELEASE_BIN/_lib.sh"
   run list_release_tags ""
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc0"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc1"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc2"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc3"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc4"
   assert_line "apache-polaris-0.9.0-incubating"
   assert_line "apache-polaris-0.9.0-incubating-rc1"
+  assert_line "apache-polaris-0.9.0-incubating-rc2"
+  assert_line "apache-polaris-0.9.0-incubating-rc3"
+  assert_line "apache-polaris-0.9.0-incubating-rc4"
+  assert_line "apache-polaris-0.9.0-incubating-rc5"
   assert_line "apache-polaris-0.9.0-incubating-rc6"
+  assert_line "apache-polaris-1.0.0-incubating"
+  assert_line "apache-polaris-1.0.0-incubating-rc0"
+  assert_line "apache-polaris-1.0.0-incubating-rc1"
+  assert_line "apache-polaris-1.0.0-incubating-rc2"
+  assert_line "apache-polaris-1.0.0-incubating-rc3"
+  assert_line "apache-polaris-1.0.0-incubating-rc4"
+  assert_line "apache-polaris-1.0.0-incubating-rc5"
+  assert_line "apache-polaris-1.0.0-incubating-rc6"
+  assert_success
+}
+
+# shellcheck disable=SC2034
+@test "list_release_tags with filter" {
+  bin_dir="${RELEASE_BIN}"
+  command_name="test_libs"
+
+  . "$RELEASE_BIN/_lib.sh"
+  run list_release_tags "1.0.0"
+  assert [ "${#lines[@]}" -eq 8 ]
+  assert_line "apache-polaris-1.0.0-incubating"
+  assert_line "apache-polaris-1.0.0-incubating-rc0"
+  assert_line "apache-polaris-1.0.0-incubating-rc1"
+  assert_line "apache-polaris-1.0.0-incubating-rc2"
+  assert_line "apache-polaris-1.0.0-incubating-rc3"
+  assert_line "apache-polaris-1.0.0-incubating-rc4"
+  assert_line "apache-polaris-1.0.0-incubating-rc5"
+  assert_line "apache-polaris-1.0.0-incubating-rc6"
   assert_success
 }
 
@@ -69,7 +116,7 @@ setup() {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run major_version_from_branch_name "release/0.9.x"
   assert_output "0"
@@ -109,7 +156,7 @@ setup() {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run _get_max_rc_iteration << EOF
 apache-polaris-0.9.0-incubating-rc1
@@ -134,7 +181,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run _get_max_patch_version << EOF
 apache-polaris-0.42.0-incubating
@@ -155,7 +202,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run _tag_for_full_version << EOF
 apache-polaris-0.42.0-incubating
@@ -187,7 +234,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run _get_latest_rc_tag_name << EOF
 apache-polaris-0.42.3-incubating-rc1
@@ -210,7 +257,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run full_version_with_label_from_release_tag "apache-polaris-1.2.3-incubating-beta"
   assert_output "1.2.3-incubating-beta"
@@ -234,7 +281,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run patch_version_from_rc_tag "apache-polaris-1.2.3-incubating-beta-rc42"
   assert_output "3"
@@ -274,7 +321,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run rc_iteration_from_tag "apache-polaris-1.2.3-incubating-beta-rc42"
   assert_output "42"
@@ -314,7 +361,7 @@ EOF
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
-  . "$RELEASE_BIN/_releases_lib.sh"
+  . "$RELEASE_BIN/_lib.sh"
 
   run version_label_from_rc_tag "apache-polaris-1.2.3-incubating-beta"
   assert_output "" # not an RC tag
