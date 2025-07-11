@@ -41,26 +41,73 @@ setup() {
 }
 
 # shellcheck disable=SC2034
-@test "list_release_branches" {
+@test "list_release_branches without specific filter" {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
   . "$RELEASE_BIN/_lib.sh"
-  run list_release_branches "" ""
-  assert_line "release/0.9.x"
+  run list_release_branches ""
+  assert_line "release/1.0.x"
   assert_success
 }
 
 # shellcheck disable=SC2034
-@test "list_release_tags no prefix" {
+@test "list_release_branches with filter" {
+  bin_dir="${RELEASE_BIN}"
+  command_name="test_libs"
+
+  . "$RELEASE_BIN/_lib.sh"
+  run list_release_branches "1.0"
+  assert_line "release/1.0.x"
+  assert_success
+}
+
+# shellcheck disable=SC2034
+@test "list_release_tags without specific filter" {
   bin_dir="${RELEASE_BIN}"
   command_name="test_libs"
 
   . "$RELEASE_BIN/_lib.sh"
   run list_release_tags ""
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc0"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc1"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc2"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc3"
+  assert_line "apache-polaris-0.10.0-beta-incubating-rc4"
   assert_line "apache-polaris-0.9.0-incubating"
   assert_line "apache-polaris-0.9.0-incubating-rc1"
+  assert_line "apache-polaris-0.9.0-incubating-rc2"
+  assert_line "apache-polaris-0.9.0-incubating-rc3"
+  assert_line "apache-polaris-0.9.0-incubating-rc4"
+  assert_line "apache-polaris-0.9.0-incubating-rc5"
   assert_line "apache-polaris-0.9.0-incubating-rc6"
+  assert_line "apache-polaris-1.0.0-incubating"
+  assert_line "apache-polaris-1.0.0-incubating-rc0"
+  assert_line "apache-polaris-1.0.0-incubating-rc1"
+  assert_line "apache-polaris-1.0.0-incubating-rc2"
+  assert_line "apache-polaris-1.0.0-incubating-rc3"
+  assert_line "apache-polaris-1.0.0-incubating-rc4"
+  assert_line "apache-polaris-1.0.0-incubating-rc5"
+  assert_line "apache-polaris-1.0.0-incubating-rc6"
+  assert_success
+}
+
+# shellcheck disable=SC2034
+@test "list_release_tags with filter" {
+  bin_dir="${RELEASE_BIN}"
+  command_name="test_libs"
+
+  . "$RELEASE_BIN/_lib.sh"
+  run list_release_tags "1.0.0"
+  assert [ "${#lines[@]}" -eq 8 ]
+  assert_line "apache-polaris-1.0.0-incubating"
+  assert_line "apache-polaris-1.0.0-incubating-rc0"
+  assert_line "apache-polaris-1.0.0-incubating-rc1"
+  assert_line "apache-polaris-1.0.0-incubating-rc2"
+  assert_line "apache-polaris-1.0.0-incubating-rc3"
+  assert_line "apache-polaris-1.0.0-incubating-rc4"
+  assert_line "apache-polaris-1.0.0-incubating-rc5"
+  assert_line "apache-polaris-1.0.0-incubating-rc6"
   assert_success
 }
 
