@@ -159,7 +159,7 @@ develocity {
       val isGitHubPullRequest = gitHubRef?.startsWith("refs/pull/") ?: false
       if (isGradleTosAccepted || (isCI && isGitHubPullRequest && isApachePolarisGitHub)) {
         // Leave TOS agreement to the user, if not running in CI.
-        termsOfUseUrl = "https://gradle.com/terms-of-service"
+        termsOfUseUrl = "https://gradle.com/help/legal-terms-of-use"
         termsOfUseAgree = "yes"
       }
       System.getenv("DEVELOCITY_SERVER")?.run {
