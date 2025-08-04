@@ -73,7 +73,7 @@ public class StorageCredentialCacheTest {
   }
 
   private StorageCredentialCache newStorageCredentialCache() {
-    return new StorageCredentialCache(storageCredentialCacheConfig);
+    return new StorageCredentialCache(callCtx.getDiagServices(), storageCredentialCacheConfig);
   }
 
   @Test

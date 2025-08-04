@@ -33,6 +33,6 @@ public class IcebergCatalogRelationalWithEntityCacheTest extends AbstractIceberg
   @Override
   protected InMemoryEntityCache createEntityCache(
       RealmConfig realmConfig, PolarisMetaStoreManager metaStoreManager) {
-    return new InMemoryEntityCache(realmConfig, metaStoreManager);
+    return new InMemoryEntityCache(diagServices, realmConfig, metaStoreManager);
   }
 }

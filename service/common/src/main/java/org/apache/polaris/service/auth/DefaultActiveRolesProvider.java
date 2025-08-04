@@ -27,6 +27,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -52,6 +53,7 @@ public class DefaultActiveRolesProvider implements ActiveRolesProvider {
 
   @Inject CallContext callContext;
   @Inject MetaStoreManagerFactory metaStoreManagerFactory;
+  @Inject PolarisDiagnostics diagnostics;
 
   @Override
   public Set<String> getActiveRoles(AuthenticatedPolarisPrincipal principal) {
@@ -68,13 +70,11 @@ public class DefaultActiveRolesProvider implements ActiveRolesProvider {
     PolarisCallContext polarisContext = callContext.getPolarisCallContext();
     LoadGrantsResult principalGrantResults =
         metaStoreManager.loadGrantsToGrantee(polarisContext, principal);
-    polarisContext
-        .getDiagServices()
-        .check(
-            principalGrantResults.isSuccess(),
-            "Failed to resolve principal roles for principal name={} id={}",
-            principal.getName(),
-            principal.getId());
+    diagnostics.check(
+        principalGrantResults.isSuccess(),
+        "Failed to resolve principal roles for principal name={} id={}",
+        principal.getName(),
+        principal.getId());
     if (!principalGrantResults.isSuccess()) {
       LOGGER.warn(
           "Failed to resolve principal roles for principal name={} id={}",

@@ -49,7 +49,7 @@ public class ResolverTest extends BaseResolverTest {
   @Override
   protected PolarisMetaStoreManager metaStoreManager() {
     if (metaStoreManager == null) {
-      metaStoreManager = new TransactionalMetaStoreManagerImpl();
+      metaStoreManager = new TransactionalMetaStoreManagerImpl(callCtx().getDiagServices());
     }
     return metaStoreManager;
   }

@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityCore;
@@ -466,8 +467,12 @@ public abstract class BaseResolverTest {
       @Nullable String referenceCatalogName) {
 
     // create a new cache if needs be
+    PolarisCallContext polarisCallContext = callCtx();
+    PolarisDiagnostics diagnostics = polarisCallContext.getDiagServices();
     if (cache == null) {
-      this.cache = new InMemoryEntityCache(callCtx().getRealmConfig(), metaStoreManager());
+      this.cache =
+          new InMemoryEntityCache(
+              diagnostics, polarisCallContext.getRealmConfig(), metaStoreManager());
     }
     boolean allRoles = principalRolesScope == null;
     Optional<List<PrincipalRoleEntity>> roleEntities =
@@ -477,7 +482,8 @@ public abstract class BaseResolverTest {
                     scopes.stream()
                         .map(
                             roleName ->
-                                metaStoreManager().findPrincipalRoleByName(callCtx(), roleName))
+                                metaStoreManager()
+                                    .findPrincipalRoleByName(polarisCallContext, roleName))
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toList()));
@@ -485,7 +491,8 @@ public abstract class BaseResolverTest {
         new AuthenticatedPolarisPrincipal(
             PrincipalEntity.of(P1), Optional.ofNullable(principalRolesScope).orElse(Set.of()));
     return new Resolver(
-        callCtx(),
+        diagnostics,
+        polarisCallContext,
         metaStoreManager(),
         new SecurityContext() {
           @Override

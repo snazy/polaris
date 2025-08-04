@@ -44,6 +44,7 @@ public class PolarisTreeMapAtomicOperationMetaStoreManagerTest
             new PolarisConfigurationStore() {},
             timeSource.withZone(ZoneId.systemDefault()));
 
-    return new PolarisTestMetaStoreManager(new AtomicOperationMetaStoreManager(), callCtx);
+    return new PolarisTestMetaStoreManager(
+        new AtomicOperationMetaStoreManager(diagServices), callCtx);
   }
 }

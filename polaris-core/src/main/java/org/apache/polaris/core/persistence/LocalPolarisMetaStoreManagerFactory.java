@@ -87,7 +87,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
    * into the existing realm-based setup flow.
    */
   protected PolarisMetaStoreManager createNewMetaStoreManager() {
-    return new TransactionalMetaStoreManagerImpl();
+    return new TransactionalMetaStoreManagerImpl(diagnostics);
   }
 
   private void initializeForRealm(
@@ -166,7 +166,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
       PolarisMetaStoreManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
       entityCacheMap.put(
           realmContext.getRealmIdentifier(),
-          new InMemoryEntityCache(realmConfig, metaStoreManager));
+          new InMemoryEntityCache(diagnostics, realmConfig, metaStoreManager));
     }
 
     return entityCacheMap.get(realmContext.getRealmIdentifier());

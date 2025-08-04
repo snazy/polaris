@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.config.BehaviorChangeConfiguration;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
@@ -44,6 +45,8 @@ public class InMemoryEntityCache implements EntityCache {
   // cache mode
   private EntityCacheMode cacheMode;
 
+  private final PolarisDiagnostics diagnostics;
+
   // the meta store manager
   private final PolarisMetaStoreManager polarisMetaStoreManager;
 
@@ -59,7 +62,11 @@ public class InMemoryEntityCache implements EntityCache {
    * @param polarisMetaStoreManager the meta store manager implementation
    */
   public InMemoryEntityCache(
-      @Nonnull RealmConfig realmConfig, @Nonnull PolarisMetaStoreManager polarisMetaStoreManager) {
+      @Nonnull PolarisDiagnostics diagnostics,
+      @Nonnull RealmConfig realmConfig,
+      @Nonnull PolarisMetaStoreManager polarisMetaStoreManager) {
+
+    this.diagnostics = diagnostics;
 
     // by name cache
     this.byName = new ConcurrentHashMap<>();
@@ -344,16 +351,13 @@ public class InMemoryEntityCache implements EntityCache {
       }
 
       // assert that entity, grant records and version are all set
-      callContext.getDiagServices().checkNotNull(entity, "unexpected_null_entity");
-      callContext.getDiagServices().checkNotNull(grantRecords, "unexpected_null_grant_records");
-      callContext
-          .getDiagServices()
-          .check(grantRecordsVersion > 0, "unexpected_null_grant_records_version");
+      diagnostics.checkNotNull(entity, "unexpected_null_entity");
+      diagnostics.checkNotNull(grantRecords, "unexpected_null_grant_records");
+      diagnostics.check(grantRecordsVersion > 0, "unexpected_null_grant_records_version");
 
       // create new cache entry
       newCacheEntry =
-          new ResolvedPolarisEntity(
-              callContext.getDiagServices(), entity, grantRecords, grantRecordsVersion);
+          new ResolvedPolarisEntity(diagnostics, entity, grantRecords, grantRecordsVersion);
 
       // insert cache entry
       this.replaceCacheEntry(existingCacheEntry, newCacheEntry);
@@ -401,13 +405,12 @@ public class InMemoryEntityCache implements EntityCache {
       }
 
       // if found, setup entry
-      callContext.getDiagServices().checkNotNull(result.getEntity(), "entity_should_loaded");
-      callContext
-          .getDiagServices()
-          .checkNotNull(result.getEntityGrantRecords(), "entity_grant_records_should_loaded");
+      diagnostics.checkNotNull(result.getEntity(), "entity_should_loaded");
+      diagnostics.checkNotNull(
+          result.getEntityGrantRecords(), "entity_grant_records_should_loaded");
       entry =
           new ResolvedPolarisEntity(
-              callContext.getDiagServices(),
+              diagnostics,
               result.getEntity(),
               result.getEntityGrantRecords(),
               result.getGrantRecordsVersion());
@@ -458,15 +461,14 @@ public class InMemoryEntityCache implements EntityCache {
       }
 
       // validate return
-      callContext.getDiagServices().checkNotNull(result.getEntity(), "entity_should_loaded");
-      callContext
-          .getDiagServices()
-          .checkNotNull(result.getEntityGrantRecords(), "entity_grant_records_should_loaded");
+      diagnostics.checkNotNull(result.getEntity(), "entity_should_loaded");
+      diagnostics.checkNotNull(
+          result.getEntityGrantRecords(), "entity_grant_records_should_loaded");
 
       // if found, setup entry
       entry =
           new ResolvedPolarisEntity(
-              callContext.getDiagServices(),
+              diagnostics,
               result.getEntity(),
               result.getEntityGrantRecords(),
               result.getGrantRecordsVersion());

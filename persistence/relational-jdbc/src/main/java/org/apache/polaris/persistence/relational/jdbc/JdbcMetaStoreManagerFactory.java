@@ -86,7 +86,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory {
   }
 
   protected PolarisMetaStoreManager createNewMetaStoreManager() {
-    return new AtomicOperationMetaStoreManager();
+    return new AtomicOperationMetaStoreManager(diagServices);
   }
 
   private void initializeForRealm(
@@ -213,7 +213,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory {
       PolarisMetaStoreManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
       entityCacheMap.put(
           realmContext.getRealmIdentifier(),
-          new InMemoryEntityCache(realmConfig, metaStoreManager));
+          new InMemoryEntityCache(diagServices, realmConfig, metaStoreManager));
     }
 
     return entityCacheMap.get(realmContext.getRealmIdentifier());

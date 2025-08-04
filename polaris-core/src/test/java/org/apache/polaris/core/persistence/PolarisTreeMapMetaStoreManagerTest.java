@@ -44,6 +44,7 @@ public class PolarisTreeMapMetaStoreManagerTest extends BasePolarisMetaStoreMana
             new PolarisConfigurationStore() {},
             timeSource.withZone(ZoneId.systemDefault()));
 
-    return new PolarisTestMetaStoreManager(new TransactionalMetaStoreManagerImpl(), callCtx);
+    return new PolarisTestMetaStoreManager(
+        new TransactionalMetaStoreManagerImpl(diagServices), callCtx);
   }
 }

@@ -94,7 +94,7 @@ public class InMemoryEntityCacheTest {
         new TreeMapTransactionalPersistenceImpl(
             diagServices, store, Mockito.mock(), RANDOM_SECRETS);
     callCtx = new PolarisCallContext(() -> "testRealm", metaStore, diagServices);
-    metaStoreManager = new TransactionalMetaStoreManagerImpl();
+    metaStoreManager = new TransactionalMetaStoreManagerImpl(diagServices);
 
     // bootstrap the mata store with our test schema
     tm = new PolarisTestMetaStoreManager(metaStoreManager, callCtx);
@@ -105,7 +105,7 @@ public class InMemoryEntityCacheTest {
    * @return new cache for the entity store
    */
   InMemoryEntityCache allocateNewCache() {
-    return new InMemoryEntityCache(callCtx.getRealmConfig(), this.metaStoreManager);
+    return new InMemoryEntityCache(diagServices, callCtx.getRealmConfig(), this.metaStoreManager);
   }
 
   @Test

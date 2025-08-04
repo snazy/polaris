@@ -162,7 +162,7 @@ public record TestServices(
 
       StorageCredentialCacheConfig storageCredentialCacheConfig = () -> 10_000;
       StorageCredentialCache storageCredentialCache =
-          new StorageCredentialCache(storageCredentialCacheConfig);
+          new StorageCredentialCache(polarisDiagnostics, storageCredentialCacheConfig);
 
       UserSecretsManagerFactory userSecretsManagerFactory =
           new UnsafeInMemorySecretsManagerFactory();
@@ -185,6 +185,7 @@ public record TestServices(
       ResolverFactory resolverFactory =
           (_callContext, securityContext, referenceCatalogName) ->
               new Resolver(
+                  polarisDiagnostics,
                   _callContext.getPolarisCallContext(),
                   metaStoreManager,
                   securityContext,

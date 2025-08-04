@@ -44,7 +44,7 @@ public class IcebergPropertiesValidation {
       @Nonnull CallContext callContext,
       @Nonnull Map<String, String> properties,
       @Nullable PolarisStorageConfigurationInfo storageConfigurationInfo) {
-    var realmConfig = callContext.getPolarisCallContext().getRealmConfig();
+    var realmConfig = callContext.getRealmConfig();
     var ioImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
 
     if (ioImpl != null) {

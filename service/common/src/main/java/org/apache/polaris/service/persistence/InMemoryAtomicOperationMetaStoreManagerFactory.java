@@ -47,6 +47,6 @@ public class InMemoryAtomicOperationMetaStoreManagerFactory
 
   @Override
   protected PolarisMetaStoreManager createNewMetaStoreManager() {
-    return new AtomicOperationMetaStoreManager();
+    return new AtomicOperationMetaStoreManager(diagServices);
   }
 }

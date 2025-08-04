@@ -105,13 +105,14 @@ public class QuarkusProducers {
   @Produces
   @ApplicationScoped
   public StorageCredentialCache storageCredentialCache(
-      StorageCredentialCacheConfig storageCredentialCacheConfig) {
-    return new StorageCredentialCache(storageCredentialCacheConfig);
+      PolarisDiagnostics diagnostics, StorageCredentialCacheConfig storageCredentialCacheConfig) {
+    return new StorageCredentialCache(diagnostics, storageCredentialCacheConfig);
   }
 
   @Produces
   @ApplicationScoped
   public ResolverFactory resolverFactory(
+      PolarisDiagnostics diagnostics,
       MetaStoreManagerFactory metaStoreManagerFactory,
       PolarisMetaStoreManager polarisMetaStoreManager) {
     return (callContext, securityContext, referenceCatalogName) -> {
@@ -119,6 +120,7 @@ public class QuarkusProducers {
           metaStoreManagerFactory.getOrCreateEntityCache(
               callContext.getRealmContext(), callContext.getRealmConfig());
       return new Resolver(
+          diagnostics,
           callContext.getPolarisCallContext(),
           polarisMetaStoreManager,
           securityContext,
