@@ -65,6 +65,7 @@ public class AtomicMetastoreManagerWithJdbcBasePersistenceImplTest
     RealmContext realmContext = () -> "REALM";
     JdbcBasePersistenceImpl basePersistence =
         new JdbcBasePersistenceImpl(
+            diagServices,
             datasourceOperations,
             RANDOM_SECRETS,
             Mockito.mock(),
