@@ -59,7 +59,7 @@ public class DefaultActiveRolesProvider implements ActiveRolesProvider {
         loadActivePrincipalRoles(
             principal.getActivatedPrincipalRoleNames(),
             principal.getPrincipalEntity(),
-            metaStoreManagerFactory.getOrCreateMetaStoreManager(callContext.getRealmContext()));
+            metaStoreManagerFactory.createMetaStoreManager(callContext.getRealmContext()));
     return activeRoles.stream().map(PrincipalRoleEntity::getName).collect(Collectors.toSet());
   }
 

@@ -33,9 +33,16 @@ import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 
 /** Shared basic PolarisMetaStoreManager logic for transactional and non-transactional impls. */
-public abstract class BaseMetaStoreManager implements PolarisMetaStoreManager {
+public abstract class BaseMetaStoreManager<P extends BasePersistence>
+    implements PolarisMetaStoreManager {
   /** mapper, allows to serialize/deserialize properties to/from JSON */
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  protected final P basePersistence;
+
+  protected BaseMetaStoreManager(P basePersistence) {
+    this.basePersistence = basePersistence;
+  }
 
   public static PolarisStorageConfigurationInfo extractStorageConfiguration(
       @Nonnull PolarisDiagnostics diagnostics, PolarisBaseEntity reloadedEntity) {
@@ -205,9 +212,6 @@ public abstract class BaseMetaStoreManager implements PolarisMetaStoreManager {
   /** {@inheritDoc} */
   @Override
   public @Nonnull GenerateEntityIdResult generateNewEntityId(@Nonnull PolarisCallContext callCtx) {
-    // get meta store we should be using
-    BasePersistence ms = callCtx.getMetaStore();
-
-    return new GenerateEntityIdResult(ms.generateNewId(callCtx));
+    return new GenerateEntityIdResult(basePersistence.generateNewId(callCtx));
   }
 }

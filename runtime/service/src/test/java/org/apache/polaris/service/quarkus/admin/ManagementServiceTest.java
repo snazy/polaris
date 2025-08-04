@@ -168,16 +168,12 @@ public class ManagementServiceTest {
   private PolarisMetaStoreManager setupMetaStoreManager() {
     MetaStoreManagerFactory metaStoreManagerFactory = services.metaStoreManagerFactory();
     RealmContext realmContext = services.realmContext();
-    return metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    return metaStoreManagerFactory.createMetaStoreManager(realmContext);
   }
 
   private PolarisCallContext setupCallContext() {
-    MetaStoreManagerFactory metaStoreManagerFactory = services.metaStoreManagerFactory();
     RealmContext realmContext = services.realmContext();
-    return new PolarisCallContext(
-        realmContext,
-        metaStoreManagerFactory.getOrCreateSession(realmContext),
-        services.polarisDiagnostics());
+    return new PolarisCallContext(realmContext, services.polarisDiagnostics());
   }
 
   private PolarisAdminService setupPolarisAdminService(

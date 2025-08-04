@@ -30,9 +30,7 @@ import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 /** Configuration interface for configuring the {@link PolarisMetaStoreManager}. */
 public interface MetaStoreManagerFactory {
 
-  PolarisMetaStoreManager getOrCreateMetaStoreManager(RealmContext realmContext);
-
-  BasePersistence getOrCreateSession(RealmContext realmContext);
+  PolarisMetaStoreManager createMetaStoreManager(RealmContext realmContext);
 
   EntityCache getOrCreateEntityCache(RealmContext realmContext, RealmConfig realmConfig);
 

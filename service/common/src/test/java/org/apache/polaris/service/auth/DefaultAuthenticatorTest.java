@@ -47,8 +47,7 @@ public class DefaultAuthenticatorTest {
     when(polarisCallContext.getRealmContext()).thenReturn(realmContext);
     metaStoreManager = Mockito.mock(PolarisMetaStoreManager.class);
     MetaStoreManagerFactory metaStoreManagerFactory = Mockito.mock(MetaStoreManagerFactory.class);
-    when(metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext))
-        .thenReturn(metaStoreManager);
+    when(metaStoreManagerFactory.createMetaStoreManager(realmContext)).thenReturn(metaStoreManager);
     authenticator = new DefaultAuthenticator();
     authenticator.metaStoreManagerFactory = metaStoreManagerFactory;
     authenticator.callContext = polarisCallContext;

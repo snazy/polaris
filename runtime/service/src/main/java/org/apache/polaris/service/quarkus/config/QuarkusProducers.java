@@ -44,7 +44,6 @@ import org.apache.polaris.core.config.PolarisConfigurationStore;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
@@ -159,11 +158,8 @@ public class QuarkusProducers {
       RealmContext realmContext,
       PolarisDiagnostics diagServices,
       PolarisConfigurationStore configurationStore,
-      MetaStoreManagerFactory metaStoreManagerFactory,
       Clock clock) {
-    BasePersistence metaStoreSession = metaStoreManagerFactory.getOrCreateSession(realmContext);
-    return new PolarisCallContext(
-        realmContext, metaStoreSession, diagServices, configurationStore, clock);
+    return new PolarisCallContext(realmContext, diagServices, configurationStore, clock);
   }
 
   @Produces
@@ -205,7 +201,7 @@ public class QuarkusProducers {
   @RequestScoped
   public PolarisMetaStoreManager polarisMetaStoreManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    return metaStoreManagerFactory.createMetaStoreManager(realmContext);
   }
 
   @Produces

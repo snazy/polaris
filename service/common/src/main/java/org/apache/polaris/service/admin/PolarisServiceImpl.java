@@ -121,7 +121,7 @@ public class PolarisServiceImpl
     }
 
     PolarisMetaStoreManager metaStoreManager =
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+        metaStoreManagerFactory.createMetaStoreManager(realmContext);
     UserSecretsManager userSecretsManager =
         userSecretsManagerFactory.getOrCreateUserSecretsManager(realmContext);
     return new PolarisAdminService(

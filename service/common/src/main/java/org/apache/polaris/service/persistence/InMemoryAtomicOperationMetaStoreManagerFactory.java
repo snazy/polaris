@@ -22,6 +22,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
@@ -46,7 +47,7 @@ public class InMemoryAtomicOperationMetaStoreManagerFactory
   }
 
   @Override
-  protected PolarisMetaStoreManager createNewMetaStoreManager() {
-    return new AtomicOperationMetaStoreManager();
+  public PolarisMetaStoreManager createMetaStoreManager(RealmContext realmContext) {
+    return new AtomicOperationMetaStoreManager(createSession(realmContext));
   }
 }

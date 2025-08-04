@@ -83,11 +83,7 @@ class TableCleanupTaskHandlerTest {
 
     callContext =
         new PolarisCallContext(
-            realmContext,
-            metaStoreManagerFactory.getOrCreateSession(realmContext),
-            diagServices,
-            configurationStore,
-            Clock.systemDefaultZone());
+            realmContext, diagServices, configurationStore, Clock.systemDefaultZone());
   }
 
   @Test
@@ -130,7 +126,7 @@ class TableCleanupTaskHandlerTest {
 
     assertThat(
             metaStoreManagerFactory
-                .getOrCreateMetaStoreManager(realmContext)
+                .createMetaStoreManager(realmContext)
                 .loadTasks(callContext.getPolarisCallContext(), "test", PageToken.fromLimit(2))
                 .getEntities())
         .hasSize(2)
@@ -207,7 +203,7 @@ class TableCleanupTaskHandlerTest {
     // both tasks successfully executed, but only one should queue subtasks
     assertThat(
             metaStoreManagerFactory
-                .getOrCreateMetaStoreManager(realmContext)
+                .createMetaStoreManager(realmContext)
                 .loadTasks(callContext.getPolarisCallContext(), "test", PageToken.fromLimit(5))
                 .getEntities())
         .hasSize(2);
@@ -266,7 +262,7 @@ class TableCleanupTaskHandlerTest {
     // both tasks successfully executed, but only one should queue subtasks
     assertThat(
             metaStoreManagerFactory
-                .getOrCreateMetaStoreManager(realmContext)
+                .createMetaStoreManager(realmContext)
                 .loadTasks(callContext.getPolarisCallContext(), "test", PageToken.fromLimit(5))
                 .getEntities())
         .hasSize(4)
@@ -382,7 +378,7 @@ class TableCleanupTaskHandlerTest {
 
     List<PolarisBaseEntity> entities =
         metaStoreManagerFactory
-            .getOrCreateMetaStoreManager(realmContext)
+            .createMetaStoreManager(realmContext)
             .loadTasks(callContext.getPolarisCallContext(), "test", PageToken.fromLimit(5))
             .getEntities();
 
@@ -554,7 +550,7 @@ class TableCleanupTaskHandlerTest {
 
     List<PolarisBaseEntity> entities =
         metaStoreManagerFactory
-            .getOrCreateMetaStoreManager(callContext.getRealmContext())
+            .createMetaStoreManager(callContext.getRealmContext())
             .loadTasks(callContext.getPolarisCallContext(), "test", PageToken.fromLimit(6))
             .getEntities();
 

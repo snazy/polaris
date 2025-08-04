@@ -60,7 +60,7 @@ public class DefaultAuthenticator
   public Optional<AuthenticatedPolarisPrincipal> authenticate(PrincipalAuthInfo credentials) {
     LOGGER.debug("Resolving principal for credentials={}", credentials);
     PolarisMetaStoreManager metaStoreManager =
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(callContext.getRealmContext());
+        metaStoreManagerFactory.createMetaStoreManager(callContext.getRealmContext());
     PolarisEntity principal = null;
     try {
       // If the principal id is present, prefer to use it to load the principal entity,

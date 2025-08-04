@@ -38,11 +38,13 @@ public class PolarisTreeMapAtomicOperationMetaStoreManagerTest
     PolarisCallContext callCtx =
         new PolarisCallContext(
             () -> "testRealm",
-            new TreeMapTransactionalPersistenceImpl(store, Mockito.mock(), RANDOM_SECRETS),
             diagServices,
             new PolarisConfigurationStore() {},
             timeSource.withZone(ZoneId.systemDefault()));
 
-    return new PolarisTestMetaStoreManager(new AtomicOperationMetaStoreManager(), callCtx);
+    return new PolarisTestMetaStoreManager(
+        new AtomicOperationMetaStoreManager(
+            new TreeMapTransactionalPersistenceImpl(store, Mockito.mock(), RANDOM_SECRETS)),
+        callCtx);
   }
 }

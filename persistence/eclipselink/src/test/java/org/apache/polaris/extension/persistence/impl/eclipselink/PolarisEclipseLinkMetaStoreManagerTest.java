@@ -90,10 +90,9 @@ public class PolarisEclipseLinkMetaStoreManagerTest extends BasePolarisMetaStore
         new PolarisEclipseLinkMetaStoreSessionImpl(
             store, Mockito.mock(), realmContext, null, "polaris", RANDOM_SECRETS);
     return new PolarisTestMetaStoreManager(
-        new TransactionalMetaStoreManagerImpl(),
+        new TransactionalMetaStoreManagerImpl(session),
         new PolarisCallContext(
             realmContext,
-            session,
             diagServices,
             new PolarisConfigurationStore() {},
             timeSource.withZone(ZoneId.systemDefault())));

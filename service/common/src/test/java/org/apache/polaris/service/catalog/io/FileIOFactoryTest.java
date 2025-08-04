@@ -139,7 +139,6 @@ public class FileIOFactoryTest {
     callContext =
         new PolarisCallContext(
             realmContext,
-            testServices.metaStoreManagerFactory().getOrCreateSession(realmContext),
             testServices.polarisDiagnostics(),
             testServices.configurationStore(),
             Clock.systemUTC());
@@ -178,7 +177,7 @@ public class FileIOFactoryTest {
     List<PolarisBaseEntity> tasks =
         testServices
             .metaStoreManagerFactory()
-            .getOrCreateMetaStoreManager(realmContext)
+            .createMetaStoreManager(realmContext)
             .loadTasks(callContext.getPolarisCallContext(), "testExecutor", PageToken.fromLimit(1))
             .getEntities();
     Assertions.assertThat(tasks).hasSize(1);
@@ -235,7 +234,7 @@ public class FileIOFactoryTest {
         new IcebergCatalog(
             services.storageCredentialCache(),
             services.resolverFactory(),
-            services.metaStoreManagerFactory().getOrCreateMetaStoreManager(realmContext),
+            services.metaStoreManagerFactory().createMetaStoreManager(realmContext),
             callContext,
             passthroughView,
             services.securityContext(),
