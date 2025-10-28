@@ -17,8 +17,8 @@
  * under the License.
  */
 
+import org.apache.rat.config.exclusion.StandardCollection
 import java.net.URI
-import org.nosphere.apache.rat.RatTask
 
 buildscript { repositories { maven { url = java.net.URI("https://plugins.gradle.org/m2/") } } }
 
@@ -26,7 +26,7 @@ plugins {
   id("idea")
   id("eclipse")
   id("polaris-root")
-  alias(libs.plugins.rat)
+  id("org.apache.rat.gradle-plugin")
   alias(libs.plugins.jetbrains.changelog)
 }
 
@@ -52,92 +52,61 @@ if (System.getProperty("idea.sync.active").toBoolean()) {
 
 eclipse { project { name = ideName } }
 
-tasks.named<RatTask>("rat").configure {
-  // Gradle
-  excludes.add("**/build/**")
-  excludes.add("gradle/wrapper/gradle-wrapper*")
-  excludes.add(".gradle")
-  excludes.add("**/kotlin-compiler*")
-  excludes.add("**/build-logic/.kotlin/**")
+rat {
+  // excludes `.gitignore` contents
+  inputExcludeParsedScms.add(StandardCollection.GIT)
 
-  excludes.add("ide-name.txt")
-  excludes.add("version.txt")
+  // excludes standard file patterns (like .git)
+  inputExcludeStds.addAll(
+      StandardCollection.MISC,
+      StandardCollection.MAC,
+      StandardCollection.GIT,
+      StandardCollection.GRADLE,
+      StandardCollection.IDEA,
+      StandardCollection.ECLIPSE)
 
-  excludes.add("DISCLAIMER_WIP")
-  excludes.add("LICENSE")
-  excludes.add("NOTICE")
-
-  // Files copied from Docsy (ASLv2 licensed) don't have header
-  excludes.add("site/layouts/docs/baseof.html")
-  excludes.add("site/layouts/shortcodes/redoc-polaris.html")
-  excludes.add("site/layouts/community/list.html")
-  excludes.add("site/layouts/partials/navbar.html")
-  excludes.add("site/layouts/partials/head.html")
-  excludes.add("site/layouts/partials/community_links.html")
-  excludes.add("layouts/partials/head.html")
-
-  // Files copied from OpenAPI Generator (ASLv2 licensed) don't have header
-  excludes.add("server-templates/*.mustache")
+  inputExcludes.addAll("/ide-name.txt",
+      "/version.txt")
 
   // Manifest files do not allow comments
-  excludes.add("tools/version/src/jarTest/resources/META-INF/FAKE_MANIFEST.MF")
-
-  // Git & GitHub
-  excludes.add(".git")
-  excludes.add(".github/pull_request_template.md")
-
-  // Misc build artifacts
-  excludes.add(".java-version")
-  excludes.add("**/.keep")
-  excludes.add("logs/**")
-  excludes.add("**/*.lock")
-
-  // Binary files
-  excludes.add(
-    "persistence/nosql/persistence/index/src/testFixtures/resources/org/apache/polaris/persistence/indexes/words.gz"
-  )
+  inputExcludes.add("/tools/version/src/jarTest/resources/META-INF/FAKE_MANIFEST.MF")
 
   // Polaris service startup banner
-  excludes.add("runtime/service/src/**/banner.txt")
+  inputExcludes.add("/runtime/service/src/**/banner.txt")
+
+  // Binary files
+  inputExcludes.add(
+    "/persistence/nosql/persistence/index/src/testFixtures/resources/org/apache/polaris/persistence/indexes/words.gz"
+  )
+
+  // Files copied from Docsy (ASLv2 licensed) don't have header
+  inputExcludes.addAll(
+      "/site/layouts/docs/baseof.html",
+      "/site/layouts/shortcodes/redoc-polaris.html",
+      "/site/layouts/community/list.html",
+      "/site/layouts/partials/navbar.html",
+      "/site/layouts/partials/head.html",
+      "/site/layouts/partials/community_links.html",
+      "/site/layouts/partials/head.html")
+
+  // Files copied from OpenAPI Generator (ASLv2 licensed) don't have header
+  inputExcludes.add("/server-templates/*.mustache")
 
   // Web site
-  excludes.add("**/go.sum")
-  excludes.add("site/.user-settings")
-  excludes.add("site/node_modules/**")
-  excludes.add("site/layouts/robots.txt")
-  // Ignore generated stuff, when the Hugo is run w/o Docker
-  excludes.add("site/public/**")
-  excludes.add("site/resources/_gen/**")
-  excludes.add("node_modules/**")
+  inputExcludes.add("/site/layouts/robots.txt")
 
-  // Python
-  excludes.add("**/.venv/**")
-  excludes.add("**/polaris-venv/**")
-  excludes.add("**/poetry.lock")
-  excludes.add("**/.ruff_cache/**")
-  excludes.add("**/.mypy_cache/**")
-  excludes.add("**/.pytest_cache/**")
-  excludes.add("client/python/.openapi-generator/**")
+  // Go stuff
+  inputExcludes.add("**/go.sum")
 
   // Jupyter
-  excludes.add("**/*.ipynb")
+  inputExcludes.add("**/*.ipynb")
 
   // regtests
-  excludes.add("regtests/**/py.typed")
-  excludes.add("regtests/**/*.ref")
-  excludes.add("regtests/.env")
-  excludes.add("regtests/derby.log")
-  excludes.add("regtests/metastore_db/**")
-  excludes.add("regtests/output/**")
-  excludes.add("plugins/**/*.ref")
-
-  // IntelliJ
-  excludes.add(".idea")
-  excludes.add("**/*.iml")
-  excludes.add("**/*.iws")
-
-  // Rat can't scan binary images
-  excludes.add("**/*.png")
+  inputExcludes.addAll(
+      "/regtests/**/py.typed",
+      "/regtests/**/*.ref",
+      "/regtests/.env",
+      "/plugins/**/*.ref")
 }
 
 tasks.register<Exec>("buildPythonClient") {

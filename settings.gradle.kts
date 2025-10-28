@@ -21,6 +21,10 @@ import java.util.Properties
 
 includeBuild("build-logic") { name = "polaris-build-logic" }
 
+includeBuild("/home/snazy/devel/apache/creadur-rat/apache-rat-gradle-plugin") {
+    name = "apache-rat-gradle-plugin"
+}
+
 if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
   throw GradleException(
     """
@@ -105,6 +109,7 @@ gradle.beforeProject {
 pluginManagement {
   repositories {
     mavenCentral() // prefer Maven Central, in case Gradle's repo has issues
+    mavenLocal()
     gradlePluginPortal()
   }
 }
