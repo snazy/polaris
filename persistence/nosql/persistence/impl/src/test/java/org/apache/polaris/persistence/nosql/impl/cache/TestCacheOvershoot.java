@@ -130,6 +130,11 @@ public class TestCacheOvershoot {
       stop.set(true);
     }
 
+    // The read of `Eviction` properties is "just" a volatile read since Caffeine 3.2.3
+    // and trigger cleanups asynchronously. Before 3.2.3, cleanups happened synchronously.
+    // This change breaks the initially present assertions of this test, but not the
+    // functionality of the production code.
+    // See https://github.com/ben-manes/caffeine/issues/1897
     soft.assertThat(cache.currentWeightReported()).isLessThanOrEqualTo(admitWeight);
     soft.assertThat(cache.rejections()).isEqualTo(0L);
     soft.assertThat(meterRejectedWeight.totalAmount()).isEqualTo(0d);
