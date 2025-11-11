@@ -17,24 +17,24 @@
  * under the License.
  */
 
-package org.apache.polaris.storage.files.api;
+package org.apache.polaris.storage.files.api.ms;
 
-import org.apache.iceberg.io.FileIO;
-import org.apache.polaris.storage.files.api.ms.MarkAndSweep;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import java.time.Instant;
+import org.apache.polaris.immutables.PolarisImmutable;
 
-/**
- * Factory to create {@link FileOperations} and {@link MarkAndSweep} instances to perform object
- * storage related maintenance operations.
- */
-public interface FileOperationsFactory {
-  /**
-   * Create a {@link FileOperations} instance for the given {@link FileIO} instance.
-   *
-   * @param fileIO the {@link FileIO} instance to use. The given instance must implement both {@link
-   *     org.apache.iceberg.io.SupportsBulkOperations} and {@link
-   *     org.apache.iceberg.io.SupportsPrefixOperations}.
-   */
-  FileOperations createFileOperations(FileIO fileIO);
+@PolarisImmutable
+@JsonSerialize(as = ImmutableMarkResult.class)
+@JsonDeserialize(as = ImmutableMarkResult.class)
+public interface MarkResult {
+  long identifiedFiles();
 
-  MarkAndSweep createMarkAndSweep();
+  Instant startTime();
+
+  Instant finishedTime();
+
+  boolean canSweep();
+
+  String information();
 }

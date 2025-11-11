@@ -42,9 +42,38 @@ The operations are implemented to continue in case of errors and eventually succ
 Maintenance operations are usually not actively observed, and manually fixing consistency issues in object
 stores is not a straightforward task for users.
 
+# Mark-and-sweep object-store purge
+
+This functionality is meant to clean up unreferenced files from an object store in a single maintenance operation.
+
+It works in two phases:
+1. The first phase ("mark") is used to identify all table/view metadata, memoize all files referenced by those,
+   likely in a probabilistic data structure like a Bloom filter.
+2. In the second phase ("sweep") the object store is scanned.
+   All files that are not referenced by any table/view metadata will be deleted.
+   Technically more precise: "not referenced" means not included in the probabilistic data structure (bloom filter).
+   False positives lead to files not being deleted.
+
+A grace-time with a reasonable default value is used to avoid deleting files that have been created after
+the identify-step started.
+This prevents deleting files that are likely going to be referenced. 
+
+This mark-and-sweep implementation could be run regularly as a scheduled maintenance operation.
+The bloom-filter has to be sized before the sweep-phase starts.
+The parameters to initialize a bloom filter are the expected number of files and the expected false positive
+probability ("FPP").
+While scanning the object store, more than the expected number of files might be added to the bloom filter,
+leading to a (too) high FPP and a higher chance of leaving unreferenced files behind.
+To accommodate this, the maximum acceptable FPP is specified as a parameter.
+The surrounding invocation code should memoize the fact and use adjust the number of files in the _next_ run.
+This "bloom filter auto-tuning" should be automatic and not require any manual intervention.
+
+The number of files to purge and the number of batch deletes can both be rate-limited to avoid overloading the
+object store and/or other parts like network interfaces.
+
 # Potential future enhancements
 
-The operations provided by `FileOperations` are meant for maintenance operations, which are not
+The operations provided by `FileOperations` and `MarkAndSweep` are meant for maintenance operations, which are not
 time- or performance-critical.
 It is more important that the operations are resilient against failures, do not add unnecessary CPU or heap pressure
 and eventually succeed.
@@ -52,6 +81,8 @@ Further, maintenance operations should not eat up too much I/O bandwidth to not 
 operations.
 
 Depending on the overall load of the system, it might be worth running some operations in parallel.
+For examples, call sites of `MarkAndSweep` could mark referenced files for multiple tables or views in parallel,
+but consider the trade-off between the runtime of the maintenance operation and impact to the whole system.
 
 # Code architecture
 

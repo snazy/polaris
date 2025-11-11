@@ -17,24 +17,31 @@
  * under the License.
  */
 
-package org.apache.polaris.storage.files.api;
+package org.apache.polaris.storage.files.api.ms;
 
-import org.apache.iceberg.io.FileIO;
-import org.apache.polaris.storage.files.api.ms.MarkAndSweep;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import java.time.Instant;
+import org.apache.polaris.immutables.PolarisImmutable;
+import org.apache.polaris.storage.files.api.PurgeSpec;
+import org.apache.polaris.storage.files.api.PurgeStats;
 
-/**
- * Factory to create {@link FileOperations} and {@link MarkAndSweep} instances to perform object
- * storage related maintenance operations.
- */
-public interface FileOperationsFactory {
+@PolarisImmutable
+@JsonSerialize(as = ImmutableSweepResult.class)
+@JsonDeserialize(as = ImmutableSweepResult.class)
+public interface SweepResult {
+  PurgeStats purgeStats();
+
+  /** The total number of found files. */
+  long foundFiles();
+
   /**
-   * Create a {@link FileOperations} instance for the given {@link FileIO} instance.
-   *
-   * @param fileIO the {@link FileIO} instance to use. The given instance must implement both {@link
-   *     org.apache.iceberg.io.SupportsBulkOperations} and {@link
-   *     org.apache.iceberg.io.SupportsPrefixOperations}.
+   * Number of files that are eligible to be purged. The value includes files that are ignored by
+   * {@link PurgeSpec#fileFilter()}.
    */
-  FileOperations createFileOperations(FileIO fileIO);
+  long filteredFiles();
 
-  MarkAndSweep createMarkAndSweep();
+  Instant startTime();
+
+  Instant finishedTime();
 }
