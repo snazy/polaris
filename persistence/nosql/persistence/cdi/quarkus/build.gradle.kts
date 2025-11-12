@@ -29,6 +29,8 @@ dependencies {
   implementation(project(":polaris-persistence-nosql-api"))
   implementation(project(":polaris-persistence-nosql-inmemory"))
   implementation(project(":polaris-persistence-nosql-mongodb"))
+  implementation(project(":polaris-persistence-nosql-jdbc"))
+  implementation(project(":polaris-persistence-nosql-rocksdb"))
   implementation(project(":polaris-idgen-api"))
   runtimeOnly(project(":polaris-nodes-impl"))
   runtimeOnly(project(":polaris-nodes-store-nosql"))
@@ -52,6 +54,7 @@ dependencies {
   implementation(platform(libs.quarkus.bom))
   implementation("io.quarkus:quarkus-core")
   implementation("io.quarkus:quarkus-mongodb-client")
+  implementation("io.quarkus:quarkus-datasource")
   runtimeOnly("io.quarkus:quarkus-micrometer")
 
   implementation(libs.jakarta.ws.rs.api)

@@ -46,7 +46,17 @@ dependencies {
 
 // Map of `:polaris-persistence-*` projects implementing the database specific parts to the list of
 // test-backend names to be exercised.
-var dbs = mapOf("inmemory" to listOf("InMemory"), "mongodb" to listOf("MongoDb"))
+var dbs =
+  mapOf(
+    "inmemory" to listOf("InMemory"),
+    "mongodb" to listOf("MongoDb"),
+    "cassandra" to listOf("Cassandra"),
+    "rocksdb" to listOf("RocksDb"),
+    "jdbc" to listOf("JDBC-H2", "JDBC-MariaDB", "JDBC-MySQL", "JDBC-Postgres"),
+    "mongodb" to listOf("MongoDb"),
+    // Bigtable + Dynamo not included here, because those would run against a simulator that has not
+    // must to do with the actual production systems
+  )
 
 testing {
   suites {
