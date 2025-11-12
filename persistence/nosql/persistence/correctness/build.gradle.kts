@@ -50,6 +50,10 @@ var dbs =
   mapOf(
     "inmemory" to listOf("InMemory"),
     "mongodb" to listOf("MongoDb"),
+    "cassandra" to listOf("Cassandra"),
+    "rocksdb" to listOf("RocksDb"),
+    "jdbc" to listOf("JDBC-H2", "JDBC-MariaDB", "JDBC-MySQL", "JDBC-Postgres"),
+    "mongodb" to listOf("MongoDb"),
     // Bigtable + Dynamo not included here, because those would run against a simulator that has not
     // must to do with the actual production systems
   )
