@@ -58,6 +58,7 @@ import org.apache.polaris.service.catalog.Profiles;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
+import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
@@ -77,7 +78,8 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
-public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<IcebergCatalog> {
+public abstract class AbstractIcebergCatalogViewTest
+    extends ViewCatalogTests<PolarisIcebergCatalog> {
   static {
     Assumptions.setPreferredAssumptionException(PreferredAssumptionException.JUNIT5);
   }
@@ -118,7 +120,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject FileIOFactory fileIOFactory;
 
-  private IcebergCatalog catalog;
+  private PolarisIcebergCatalog catalog;
 
   private String realmName;
   private PolarisCallContext polarisContext;
@@ -208,7 +210,8 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             storageAccessConfigProvider,
             fileIOFactory,
             polarisEventListener,
-            eventMetadataFactory);
+            eventMetadataFactory,
+            new EventAttributeMap());
     Map<String, String> properties =
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
@@ -224,7 +227,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   }
 
   @Override
-  protected IcebergCatalog catalog() {
+  protected PolarisIcebergCatalog catalog() {
     return catalog;
   }
 
@@ -240,7 +243,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
 
   @Test
   public void testEventsAreEmitted() {
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     View view =
         catalog

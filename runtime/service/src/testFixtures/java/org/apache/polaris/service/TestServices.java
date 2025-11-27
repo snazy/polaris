@@ -71,6 +71,8 @@ import org.apache.polaris.service.catalog.api.IcebergRestCatalogApi;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApi;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApiService;
+import org.apache.polaris.service.catalog.common.CatalogAccessFactory;
+import org.apache.polaris.service.catalog.common.metastore.MetaStoreCatalogAccessFactory;
 import org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogAdapter;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventServiceDelegator;
@@ -313,6 +315,7 @@ public record TestServices(
       TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
 
       PolarisEventListener polarisEventListener = new TestPolarisEventListener();
+      EventAttributeMap eventAttributeMap = new EventAttributeMap();
       CallContextCatalogFactory callContextFactory =
           new PolarisCallContextCatalogFactory(
               diagnostics,
@@ -324,7 +327,8 @@ public record TestServices(
               eventMetadataFactory,
               metaStoreManager,
               callContext,
-              principal);
+              principal,
+              eventAttributeMap);
 
       ReservedProperties reservedProperties = ReservedProperties.NONE;
 
@@ -335,26 +339,28 @@ public record TestServices(
       Mockito.when(externalCatalogFactory.select(any())).thenReturn(externalCatalogFactory);
       Mockito.when(externalCatalogFactory.isUnsatisfied()).thenReturn(true);
 
-      EventAttributeMap eventAttributeMap = new EventAttributeMap();
-      IcebergCatalogAdapter catalogService =
-          new IcebergCatalogAdapter(
-              diagnostics,
-              realmContext,
+      CatalogAccessFactory customCatalogAccessFactory =
+          new MetaStoreCatalogAccessFactory(
+              metaStoreManager,
               callContext,
               callContextFactory,
-              resolverFactory,
               resolutionManifestFactory,
-              metaStoreManager,
-              credentialManager,
+              resolverFactory,
               authorizer,
+              principal);
+
+      IcebergCatalogAdapter catalogService =
+          new IcebergCatalogAdapter(
+              realmConfig,
+              credentialManager,
+              customCatalogAccessFactory,
               new DefaultCatalogPrefixParser(),
               reservedProperties,
               catalogHandlerUtils,
               externalCatalogFactory,
               storageAccessConfigProvider,
               new DefaultMetricsReporter(),
-              Clock.systemUTC(),
-              eventAttributeMap);
+              Clock.systemUTC());
 
       // Optionally wrap with event delegator
       IcebergRestCatalogApiService finalRestCatalogService = catalogService;

@@ -16,28 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.persistence;
 
-import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
-import java.util.Set;
+package org.apache.polaris.service.catalog.common;
 
-@ConfigMapping(prefix = "polaris.persistence")
-public interface PersistenceConfiguration {
-
-  /**
-   * The type of the persistence to use. Must be a registered {@link
-   * org.apache.polaris.core.persistence.MetaStoreManagerFactory} identifier.
-   */
-  String type();
-
-  @WithDefault("in-memory")
-  Set<String> autoBootstrapTypes();
-
-  @WithDefault("default")
-  String catalogStoreType();
-
-  default boolean isAutoBootstrap() {
-    return autoBootstrapTypes().contains(type());
-  }
+public interface CatalogAccessFactory {
+  <CATALOG> CatalogAccess<CATALOG> forCatalog(String catalogName, Class<CATALOG> catalogClass);
 }

@@ -245,6 +245,10 @@ public class CatalogHandlerUtils {
       SupportsNamespaces catalog, Namespace namespace, UpdateNamespacePropertiesRequest request) {
     request.validate();
 
+    if (catalog instanceof RESTCompatibleCatalog restCatalog) {
+      restCatalog.updateNamespaceProperties(namespace, request);
+    }
+
     Set<String> removals = Sets.newHashSet(request.removals());
     Map<String, String> updates = request.updates();
 
@@ -347,6 +351,14 @@ public class CatalogHandlerUtils {
       Catalog catalog, Namespace namespace, RegisterTableRequest request) {
     request.validate();
 
+    if (catalog instanceof RESTCompatibleCatalog restCompatibleCatalog) {
+      return LoadTableResponse.builder()
+          .withTableMetadata(
+              restCompatibleCatalog.registerTable(
+                  namespace, request.name(), request.metadataLocation()))
+          .build();
+    }
+
     TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
     Table table = catalog.registerTable(identifier, request.metadataLocation());
     if (table instanceof BaseTable baseTable) {
@@ -396,6 +408,14 @@ public class CatalogHandlerUtils {
 
   public LoadTableResponse updateTable(
       Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+    if (catalog instanceof RESTCompatibleCatalog restCompatibleCatalog) {
+      return LoadTableResponse.builder()
+          .withTableMetadata(
+              restCompatibleCatalog.updateTable(
+                  UpdateTableRequest.create(ident, request.requirements(), request.updates())))
+          .build();
+    }
+
     TableMetadata finalMetadata;
     if (isCreate(request)) {
       // this is a hacky way to get TableOperations for an uncommitted table
@@ -425,7 +445,7 @@ public class CatalogHandlerUtils {
     catalog.renameTable(request.source(), request.destination());
   }
 
-  private boolean isCreate(UpdateTableRequest request) {
+  public static boolean isCreate(UpdateTableRequest request) {
     boolean isCreate =
         request.requirements().stream()
             .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
@@ -771,6 +791,10 @@ public class CatalogHandlerUtils {
 
   private LoadViewResponse viewResponse(View view) {
     ViewMetadata metadata = asBaseView(view).operations().current();
+    return viewResponse(metadata);
+  }
+
+  private static ImmutableLoadViewResponse viewResponse(ViewMetadata metadata) {
     return ImmutableLoadViewResponse.builder()
         .metadata(metadata)
         .metadataLocation(metadata.metadataFileLocation())
@@ -784,19 +808,27 @@ public class CatalogHandlerUtils {
   }
 
   public LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    if (catalog instanceof RESTCompatibleCatalog restCompatibleCatalog) {
+      return viewResponse(restCompatibleCatalog.loadView(viewIdentifier));
+    }
+
     View view = catalog.loadView(viewIdentifier);
     return viewResponse(view);
   }
 
   public LoadViewResponse updateView(
       ViewCatalog catalog, TableIdentifier ident, UpdateTableRequest request) {
+    if (catalog instanceof RESTCompatibleCatalog icebergCatalog) {
+      var metadata =
+          icebergCatalog.updateView(
+              UpdateTableRequest.create(ident, request.requirements(), request.updates()));
+      return viewResponse(metadata);
+    }
+
     View view = catalog.loadView(ident);
     ViewMetadata metadata = commit(asBaseView(view).operations(), request);
 
-    return ImmutableLoadViewResponse.builder()
-        .metadata(metadata)
-        .metadataLocation(metadata.metadataFileLocation())
-        .build();
+    return viewResponse(metadata);
   }
 
   public void renameView(ViewCatalog catalog, RenameTableRequest request) {

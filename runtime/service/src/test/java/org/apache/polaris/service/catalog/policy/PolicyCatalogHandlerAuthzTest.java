@@ -28,6 +28,7 @@ import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
+import org.apache.polaris.service.catalog.common.metastore.MetaStoreCatalogAccessFactory;
 import org.apache.polaris.service.types.AttachPolicyRequest;
 import org.apache.polaris.service.types.CreatePolicyRequest;
 import org.apache.polaris.service.types.DetachPolicyRequest;
@@ -50,16 +51,17 @@ public class PolicyCatalogHandlerAuthzTest extends PolarisAuthzTestBase {
   private PolicyCatalogHandler newWrapper(Set<String> activatedPrincipalRoles, String catalogName) {
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(principalEntity, activatedPrincipalRoles);
-    return new PolicyCatalogHandler(
-        diagServices,
-        callContext,
-        resolutionManifestFactory,
-        metaStoreManager,
-        authenticatedPrincipal,
-        catalogName,
-        polarisAuthorizer,
-        null,
-        null);
+    var catalogStore =
+        new MetaStoreCatalogAccessFactory(
+                metaStoreManager,
+                callContext,
+                callContextCatalogFactory,
+                resolutionManifestFactory,
+                resolverFactory,
+                polarisAuthorizer,
+                authenticatedPrincipal)
+            .forCatalog(catalogName, PolicyCatalog.class);
+    return new PolicyCatalogHandler(realmConfig, catalogStore, null, null);
   }
 
   /**

@@ -33,7 +33,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.entity.PolarisEntity;
-import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
@@ -85,7 +84,7 @@ public class StorageAccessConfigProvider {
       @Nonnull Set<String> tableLocations,
       @Nonnull Set<PolarisStorageActions> storageActions,
       @Nonnull Optional<String> refreshCredentialsEndpoint,
-      @Nonnull PolarisResolvedPathWrapper resolvedPath) {
+      @Nonnull List<PolarisEntity> resolvedPath) {
     LOGGER
         .atDebug()
         .addKeyValue("tableIdentifier", tableIdentifier)
@@ -164,18 +163,17 @@ public class StorageAccessConfigProvider {
    * @return a credential vending context with catalog, namespace, table, and activated roles
    */
   private CredentialVendingContext buildCredentialVendingContext(
-      TableIdentifier tableIdentifier, PolarisResolvedPathWrapper resolvedPath) {
+      TableIdentifier tableIdentifier, List<PolarisEntity> resolvedPath) {
     CredentialVendingContext.Builder builder = CredentialVendingContext.builder();
 
     // Extract catalog name from the first entity in the resolved path
-    List<PolarisEntity> fullPath = resolvedPath.getRawFullPath();
-    if (fullPath != null && !fullPath.isEmpty()) {
-      builder.catalogName(Optional.of(fullPath.get(0).getName()));
+    if (resolvedPath != null && !resolvedPath.isEmpty()) {
+      builder.catalogName(Optional.of(resolvedPath.getFirst().getName()));
     }
 
     // Extract namespace from table identifier
     Namespace namespace = tableIdentifier.namespace();
-    if (namespace != null && namespace.length() > 0) {
+    if (namespace != null && !namespace.isEmpty()) {
       builder.namespace(Optional.of(String.join(".", namespace.levels())));
     }
 

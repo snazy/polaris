@@ -20,6 +20,7 @@ package org.apache.polaris.service.admin;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.throwNotFoundExceptionForTableLikeEntity;
 
 import com.google.common.base.Strings;
 import jakarta.annotation.Nonnull;
@@ -121,7 +122,6 @@ import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.azure.AzureStorageConfigurationInfo;
-import org.apache.polaris.service.catalog.common.CatalogHandler;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.slf4j.Logger;
@@ -507,7 +507,7 @@ public class PolarisAdminService {
       throw new NotFoundException("Catalog not found: %s", catalogName);
     } else if (status.getStatus() == ResolverStatus.StatusEnum.PATH_COULD_NOT_BE_FULLY_RESOLVED) {
       if (status.getFailedToResolvePath().getLastEntityType() == PolarisEntityType.TABLE_LIKE) {
-        CatalogHandler.throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
+        throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
       } else {
         throw new NotFoundException("CatalogRole not found: %s.%s", catalogName, catalogRoleName);
       }
@@ -522,7 +522,7 @@ public class PolarisAdminService {
             FeatureConfiguration.ENABLE_SUB_CATALOG_RBAC_FOR_FEDERATED_CATALOGS, catalogEntity);
     if (!(resolutionManifest.getIsPassthroughFacade() && rbacForFederatedCatalogsEnabled)
         && !subTypes.contains(tableLikeWrapper.getRawLeafEntity().getSubType())) {
-      CatalogHandler.throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
+      throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
     }
 
     PolarisResolvedPathWrapper catalogRoleWrapper =
@@ -2150,7 +2150,7 @@ public class PolarisAdminService {
                   identifier.name(), catalogEntity.getName()));
         }
       } else {
-        CatalogHandler.throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
+        throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
       }
     }
     List<PolarisEntity> catalogPath = resolvedPathWrapper.getRawParentPath();
@@ -2255,7 +2255,7 @@ public class PolarisAdminService {
             identifier, PolarisEntityType.TABLE_LIKE, PolarisEntitySubType.ANY_SUBTYPE);
     if (resolvedPathWrapper == null
         || !subTypes.contains(resolvedPathWrapper.getRawLeafEntity().getSubType())) {
-      CatalogHandler.throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
+      throwNotFoundExceptionForTableLikeEntity(identifier, subTypes);
     }
     PolarisEntity tableLikeEntity = resolvedPathWrapper.getRawLeafEntity();
 

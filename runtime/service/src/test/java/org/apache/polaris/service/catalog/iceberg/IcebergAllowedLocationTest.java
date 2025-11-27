@@ -193,10 +193,7 @@ public class IcebergAllowedLocationTest {
             viewId, List.of(), List.of(new MetadataUpdate.SetProperties(updatedProperties)));
 
     var updateResponse =
-        services
-            .catalogAdapter()
-            .newHandlerWrapper(services.securityContext(), catalog)
-            .replaceView(viewId, updateRequest);
+        services.catalogAdapter().newHandlerWrapper(catalog).replaceView(viewId, updateRequest);
     assertEquals(
         updateResponse.metadata().properties().get(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY),
         customAllowedLocation3);
@@ -253,7 +250,7 @@ public class IcebergAllowedLocationTest {
         () ->
             services
                 .catalogAdapter()
-                .newHandlerWrapper(services.securityContext(), catalog)
+                .newHandlerWrapper(catalog)
                 .replaceView(viewId, updateRequest));
 
     // Test 2: Try to create a view with location not allowed
@@ -342,10 +339,7 @@ public class IcebergAllowedLocationTest {
             tableId, List.of(), List.of(new MetadataUpdate.SetProperties(updatedProperties)));
 
     var updateResponse =
-        services
-            .catalogAdapter()
-            .newHandlerWrapper(services.securityContext(), catalog)
-            .updateTable(tableId, updateRequest);
+        services.catalogAdapter().newHandlerWrapper(catalog).updateTable(tableId, updateRequest);
 
     assertThat(updateResponse.tableMetadata().properties())
         .containsEntry("write.data.path", writeDataPath);

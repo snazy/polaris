@@ -28,7 +28,6 @@ import jakarta.ws.rs.core.SecurityContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogPolicyApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
@@ -44,8 +43,7 @@ import org.apache.polaris.service.types.UpdatePolicyRequest;
 
 @Decorator
 @Priority(1000)
-public class CatalogPolicyEventServiceDelegator
-    implements PolarisCatalogPolicyApiService, CatalogAdapter {
+public class CatalogPolicyEventServiceDelegator implements PolarisCatalogPolicyApiService {
 
   @Inject @Delegate PolicyCatalogAdapter delegate;
   @Inject PolarisEventListener polarisEventListener;

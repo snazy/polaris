@@ -67,6 +67,7 @@ import org.apache.polaris.service.auth.external.tenant.OidcTenantResolver;
 import org.apache.polaris.service.auth.internal.broker.TokenBroker;
 import org.apache.polaris.service.auth.internal.broker.TokenBrokerFactory;
 import org.apache.polaris.service.catalog.api.IcebergRestOAuth2ApiService;
+import org.apache.polaris.service.catalog.common.CatalogAccessFactory;
 import org.apache.polaris.service.catalog.io.FileIOConfiguration;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.context.RealmContextConfiguration;
@@ -158,6 +159,13 @@ public class ServiceProducers {
   public PolarisAuthorizer polarisAuthorizer(
       PolarisAuthorizerFactory factory, RealmConfig realmConfig) {
     return factory.create(realmConfig);
+  }
+
+  @Produces
+  @RequestScoped
+  public CatalogAccessFactory catalogAccessFactory(
+      PersistenceConfiguration config, @Any Instance<CatalogAccessFactory> catalogAccessFactories) {
+    return catalogAccessFactories.select(Identifier.Literal.of(config.catalogStoreType())).get();
   }
 
   @Produces

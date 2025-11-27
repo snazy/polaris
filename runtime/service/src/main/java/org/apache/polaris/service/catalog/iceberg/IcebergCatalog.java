@@ -18,29 +18,29 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
+import static org.apache.polaris.core.config.FeatureConfiguration.MAX_METADATA_REFRESH_RETRIES;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.buildTableMetadataPropertiesMap;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.newTableMetadataFilePath;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.newViewMetadataFilePath;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.noSuchNamespaceException;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.validateMetadataFileInTableDir;
 import static org.apache.polaris.service.exception.IcebergExceptionMapper.isStorageProviderRetryableException;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
-import java.io.Closeable;
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -51,14 +51,13 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -72,12 +71,10 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
@@ -87,7 +84,6 @@ import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewMetadataParser;
 import org.apache.iceberg.view.ViewOperations;
-import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
@@ -95,6 +91,7 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.config.BehaviorChangeConfiguration;
 import org.apache.polaris.core.config.FeatureConfiguration;
+import org.apache.polaris.core.config.PolarisConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
@@ -110,9 +107,12 @@ import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
+import org.apache.polaris.core.persistence.TransactionWorkspaceMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
+import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
+import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -121,17 +121,17 @@ import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCat
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.core.storage.LocationRestrictions;
 import org.apache.polaris.core.storage.PolarisStorageActions;
+import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.StorageUtil;
 import org.apache.polaris.service.catalog.SupportsNotifications;
 import org.apache.polaris.service.catalog.common.CatalogUtils;
-import org.apache.polaris.service.catalog.common.LocationUtils;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.FileIOUtil;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
-import org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation;
 import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
@@ -144,12 +144,10 @@ import org.apache.polaris.service.types.NotificationType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Defines the relationship between PolarisEntities and Iceberg's business logic. */
+/** Iceberg catalog implementation using {@link PolarisMetaStoreManager}. */
 public class IcebergCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, SupportsNotifications, Closeable {
+    implements PolarisIcebergCatalog, SupportsNotifications {
   private static final Logger LOGGER = LoggerFactory.getLogger(IcebergCatalog.class);
-
-  private static final Joiner SLASH = Joiner.on("/");
 
   public static final Predicate<Exception> SHOULD_RETRY_REFRESH_PREDICATE =
       ex -> {
@@ -175,27 +173,15 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   private final PolarisPrincipal principal;
   private final PolarisEventListener polarisEventListener;
   private final PolarisEventMetadataFactory eventMetadataFactory;
-  private final AtomicBoolean loggedPrefixOverlapWarning = new AtomicBoolean(false);
-
-  private String ioImplClassName;
-  private FileIO catalogFileIO;
-  private CloseableGroup closeableGroup;
-  private Map<String, String> tableDefaultProperties;
-
   private final String catalogName;
-  private long catalogId = -1;
-  private String defaultBaseLocation;
-  private Map<String, String> catalogProperties;
+  private final long catalogId;
+  private final Map<String, String> catalogProperties;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
-  private FileIOFactory fileIOFactory;
+  private final FileIOFactory fileIOFactory;
+  private final PolarisCatalogHelper helper = new PolarisCatalogHelper();
+  private final EventAttributeMap eventAttributeMap;
   private PolarisMetaStoreManager metaStoreManager;
 
-  /**
-   * @param callContext the current CallContext
-   * @param resolvedEntityView accessor to resolved entity paths that have been pre-vetted to ensure
-   *     this catalog instance only interacts with authorized resolved paths.
-   * @param taskExecutor Executor we use to register cleanup task handlers
-   */
   public IcebergCatalog(
       PolarisDiagnostics diagnostics,
       ResolverFactory resolverFactory,
@@ -207,7 +193,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       StorageAccessConfigProvider storageAccessConfigProvider,
       FileIOFactory fileIOFactory,
       PolarisEventListener polarisEventListener,
-      PolarisEventMetadataFactory eventMetadataFactory) {
+      PolarisEventMetadataFactory eventMetadataFactory,
+      EventAttributeMap eventAttributeMap) {
     this.diagnostics = diagnostics;
     this.resolverFactory = resolverFactory;
     this.callContext = callContext;
@@ -218,11 +205,13 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     this.taskExecutor = taskExecutor;
     this.catalogId = catalogEntity.getId();
     this.catalogName = catalogEntity.getName();
+    this.catalogProperties = Map.copyOf(catalogEntity.getPropertiesAsMap());
     this.storageAccessConfigProvider = storageAccessConfigProvider;
     this.fileIOFactory = fileIOFactory;
     this.metaStoreManager = metaStoreManager;
     this.polarisEventListener = polarisEventListener;
     this.eventMetadataFactory = eventMetadataFactory;
+    this.eventAttributeMap = eventAttributeMap;
   }
 
   @Override
@@ -230,50 +219,46 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     return catalogName;
   }
 
+  @Override
+  public RealmConfig realmConfig() {
+    return realmConfig;
+  }
+
+  @Nullable
+  @Override
+  public FileIO catalogFileIO() {
+    return helper.catalogFileIO();
+  }
+
   @VisibleForTesting
-  public void setCatalogFileIo(FileIO fileIO) {
-    catalogFileIO = fileIO;
+  @Override
+  public void setCatalogFileIO(FileIO fileIO) {
+    helper.setCatalogFileIO(fileIO);
+  }
+
+  @Nonnull
+  @Override
+  public InitializedConfig initializedConfig() {
+    return helper.initializedConfig();
+  }
+
+  @Override
+  public Optional<String> catalogBaseLocation() {
+    return Optional.ofNullable(catalogEntity.getBaseLocation());
+  }
+
+  @Override
+  public Optional<PolarisStorageConfigurationInfo> catalogStorageConfigurationInfo() {
+    return Optional.ofNullable(catalogEntity.getStorageConfigurationInfo());
   }
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkState(
-        this.catalogName.equals(name),
-        "Tried to initialize catalog as name %s but already constructed with name %s",
-        name,
-        this.catalogName);
+    helper.setInitializedConfig(initializeIcebergCatalog(name, properties));
 
-    // Ensure catalogProperties is assigned before calling metricsReporter() for proper
-    // functionality.
-    catalogProperties = properties;
-
-    // Base location from catalogEntity is primary source of truth, otherwise fall through
-    // to the same key from the properties map, and finally fall through to WAREHOUSE_LOCATION.
-    String baseLocation =
-        Optional.ofNullable(catalogEntity.getBaseLocation())
-            .orElse(
-                properties.getOrDefault(
-                    CatalogEntity.DEFAULT_BASE_LOCATION_KEY,
-                    properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "")));
-    this.defaultBaseLocation = baseLocation.replaceAll("/*$", "");
-
-    var storageConfigurationInfo = catalogEntity.getStorageConfigurationInfo();
-    ioImplClassName =
-        IcebergPropertiesValidation.determineFileIOClassName(
-            realmConfig, properties, storageConfigurationInfo);
-
-    if (ioImplClassName == null) {
-      LOGGER.warn(
-          "Cannot resolve property '{}' for null storageConfiguration.",
-          CatalogProperties.FILE_IO_IMPL);
-    }
-
-    this.closeableGroup = new CloseableGroup();
-    closeableGroup.addCloseable(metricsReporter());
-    closeableGroup.setSuppressCloseFailure(true);
-
-    tableDefaultProperties =
-        PropertyUtil.propertiesWithPrefix(properties, CatalogProperties.TABLE_DEFAULT_PREFIX);
+    // metricsReporter() requires the catalog to be initialized
+    var metricsReporter = metricsReporter();
+    helper.addCloseable(metricsReporter);
   }
 
   public void setMetaStoreManager(PolarisMetaStoreManager newMetaStoreManager) {
@@ -281,50 +266,15 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  protected Map<String, String> properties() {
-    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  public Map<String, String> properties() {
+    return PolarisIcebergCatalog.super.properties();
   }
 
   @Override
   public Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
-    Preconditions.checkArgument(
-        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
-    Preconditions.checkArgument(
-        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
-        "Cannot register an empty metadata file location as a table");
-
-    int lastSlashIndex = metadataFileLocation.lastIndexOf("/");
-    Preconditions.checkArgument(
-        lastSlashIndex != -1,
-        "Invalid metadata file location; metadata file location must be absolute and contain a '/': %s",
-        metadataFileLocation);
-
-    // Throw an exception if this table already exists in the catalog.
-    if (tableExists(identifier)) {
-      throw new AlreadyExistsException("Table already exists: %s", identifier);
-    }
-
-    String locationDir = metadataFileLocation.substring(0, lastSlashIndex);
+    TableMetadata metadata = registerTableLoadMetadata(identifier, metadataFileLocation);
 
     TableOperations ops = newTableOps(identifier);
-
-    PolarisResolvedPathWrapper resolvedParent =
-        resolvedEntityView.getResolvedPath(identifier.namespace());
-    if (resolvedParent == null) {
-      // Illegal state because the namespace should've already been in the static resolution set.
-      throw new IllegalStateException(
-          String.format("Failed to fetch resolved parent for TableIdentifier '%s'", identifier));
-    }
-    FileIO fileIO =
-        loadFileIOForTableLike(
-            identifier,
-            Set.of(locationDir),
-            resolvedParent,
-            new HashMap<>(tableDefaultProperties),
-            Set.of(PolarisStorageActions.READ, PolarisStorageActions.LIST));
-
-    InputFile metadataFile = fileIO.newInputFile(metadataFileLocation);
-    TableMetadata metadata = TableMetadataParser.read(metadataFile);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
@@ -344,7 +294,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   public TableOperations newTableOps(
       TableIdentifier tableIdentifier, boolean makeMetadataCurrentOnCommit) {
     return new BasePolarisTableOperations(
-        catalogFileIO, tableIdentifier, makeMetadataCurrentOnCommit);
+        catalogFileIO(), tableIdentifier, makeMetadataCurrentOnCommit);
   }
 
   @Override
@@ -373,14 +323,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private String defaultNamespaceLocation(Namespace namespace) {
-    if (namespace.isEmpty()) {
-      return defaultBaseLocation;
-    } else {
-      return SLASH.join(defaultBaseLocation, SLASH.join(namespace.levels()));
-    }
-  }
-
   @Override
   public boolean dropTable(TableIdentifier tableIdentifier, boolean purge) {
     TableOperations ops = newTableOps(tableIdentifier);
@@ -393,7 +335,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
     Optional<PolarisEntity> storageInfoEntity =
         FileIOUtil.findStorageInfoFromHierarchy(
-            CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier));
+            CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier)
+                .getRawFullPath());
 
     // The storageProperties we stash away in the Task should be the superset of the
     // internalProperties of the StorageInfoEntity to be able to use its StorageIntegration
@@ -413,14 +356,14 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                   // with our restricted properties so that table properties can't clobber the
                   // more restricted ones.
                   clone.putAll(lastMetadata.properties());
-                  clone.put(CatalogProperties.FILE_IO_IMPL, ioImplClassName);
+                  clone.put(CatalogProperties.FILE_IO_IMPL, ioImplClassName());
                   clone.putAll(properties);
                   clone.put(PolarisTaskConstants.STORAGE_LOCATION, lastMetadata.location());
                   return clone;
                 })
             .orElse(Map.of());
     DropEntityResult dropEntityResult =
-        dropTableLike(
+        dropTableLikeInternal(
             PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier, storageProperties, purge);
     if (!dropEntityResult.isSuccess()) {
       return false;
@@ -438,41 +381,141 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public List<TableIdentifier> listTables(Namespace namespace) {
-    return listTables(namespace, PageToken.readEverything()).items();
+  public FileIO loadFileIOForTableLike(
+      TableIdentifier identifier,
+      Set<String> locationDirs,
+      Map<String, String> tableDefaultProperties,
+      Set<PolarisStorageActions> storageActions) {
+    PolarisResolvedPathWrapper resolvedParent =
+        resolvedEntityView.getResolvedPath(identifier.namespace());
+    if (resolvedParent == null) {
+      // Illegal state because the namespace should've already been in the static resolution set.
+      throw new IllegalStateException(
+          String.format("Failed to fetch resolved parent for TableIdentifier '%s'", identifier));
+    }
+    return loadFileIOForTableLike(
+        identifier,
+        locationDirs,
+        resolvedParent,
+        new HashMap<>(tableDefaultProperties),
+        storageActions);
   }
 
-  public Page<TableIdentifier> listTables(Namespace namespace, PageToken pageToken) {
-    if (!namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException(
-          "Cannot list tables for namespace. Namespace does not exist: '%s'", namespace);
-    }
+  private PolarisCallContext getCurrentPolarisContext() {
+    return callContext.getPolarisCallContext();
+  }
 
-    return listTableLike(PolarisEntitySubType.ICEBERG_TABLE, namespace, pageToken);
+  private Optional<LocationRestrictions> locationRestrictions(
+      RealmConfig realmConfig, PolarisResolvedPathWrapper resolvedStorageEntity) {
+    return PolarisStorageConfigurationInfo.forEntityPath(
+        realmConfig, resolvedStorageEntity.getRawFullPath());
   }
 
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-    if (from.equals(to)) {
-      return;
-    }
-
-    renameTableLike(PolarisEntitySubType.ICEBERG_TABLE, from, to);
+  public boolean dropTableLike(
+      PolarisEntitySubType subType, TableIdentifier identifier, boolean purge) {
+    return dropTableLikeInternal(subType, identifier, Map.of(), purge).isSuccess();
   }
 
   @Override
-  public void createNamespace(Namespace namespace) {
-    createNamespace(namespace, Collections.emptyMap());
+  public <T> T getCatalogConfig(PolarisConfiguration<T> config) {
+    return realmConfig().getConfig(config, catalogProperties);
   }
 
   @Override
-  public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    LOGGER.debug("Creating namespace {} with metadata {}", namespace, metadata);
-    if (namespace.isEmpty()) {
-      throw new AlreadyExistsException(
-          "Cannot create root namespace, as it already exists implicitly.");
+  public void commitTransaction(CommitTransactionRequest commitTransactionRequest) {
+    // Swap in TransactionWorkspaceMetaStoreManager for all mutations made by this baseCatalog to
+    // only go into an in-memory collection that we can commit as a single atomic unit after all
+    // validations.
+    TransactionWorkspaceMetaStoreManager transactionMetaStoreManager =
+        new TransactionWorkspaceMetaStoreManager(diagnostics, getMetaStoreManager());
+    var currentMetaStoreManager = getMetaStoreManager();
+    List<TableMetadata> tableMetadataObjs = new ArrayList<>();
+    try {
+      setMetaStoreManager(transactionMetaStoreManager);
+
+      commitTransactionRequest
+          .tableChanges()
+          .forEach(
+              change -> {
+                Table table = loadTable(change.identifier());
+                if (!(table instanceof BaseTable baseTable)) {
+                  throw new IllegalStateException(
+                      "Cannot wrap catalog that does not produce BaseTable");
+                }
+                if (CatalogHandlerUtils.isCreate(change)) {
+                  throw new BadRequestException(
+                      "Unsupported operation: commitTranaction with updateForStagedCreate: %s",
+                      change);
+                }
+
+                TableOperations tableOps = baseTable.operations();
+                TableMetadata currentMetadata = tableOps.current();
+
+                // Validate requirements; any CommitFailedExceptions will fail the overall request
+                change.requirements().forEach(requirement -> requirement.validate(currentMetadata));
+
+                // Apply changes
+                TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(currentMetadata);
+                change
+                    .updates()
+                    .forEach(
+                        singleUpdate -> {
+                          // Note: If location-overlap checking is refactored to be atomic, we could
+                          // support validation within a single multi-table transaction as well, but
+                          // will need to update the TransactionWorkspaceMetaStoreManager to better
+                          // expose the concept of being able to read uncommitted updates.
+                          if (singleUpdate instanceof MetadataUpdate.SetLocation setLocation) {
+                            if (!currentMetadata.location().equals(setLocation.location())
+                                && !realmConfig()
+                                    .getConfig(
+                                        FeatureConfiguration.ALLOW_NAMESPACE_LOCATION_OVERLAP)) {
+                              throw new BadRequestException(
+                                  "Unsupported operation: commitTransaction containing SetLocation"
+                                      + " for table '%s' and new location '%s'",
+                                  change.identifier(), setLocation.location());
+                            }
+                          }
+
+                          // Apply updates to builder
+                          singleUpdate.applyTo(metadataBuilder);
+                        });
+
+                // Commit into transaction workspace we swapped the baseCatalog to use
+                TableMetadata updatedMetadata = metadataBuilder.build();
+                if (!updatedMetadata.changes().isEmpty()) {
+                  tableOps.commit(currentMetadata, updatedMetadata);
+                }
+
+                tableMetadataObjs.add(updatedMetadata);
+              });
+    } finally {
+      setMetaStoreManager(currentMetaStoreManager);
     }
 
+    // Commit the collected updates in a single atomic operation
+    List<EntityWithPath> pendingUpdates = transactionMetaStoreManager.getPendingUpdates();
+    EntitiesResult result =
+        getMetaStoreManager()
+            .updateEntitiesPropertiesIfNotChanged(
+                callContext.getPolarisCallContext(), pendingUpdates);
+    if (!result.isSuccess()) {
+      // TODO: Retries and server-side cleanup on failure, review possible exceptions
+      throw new CommitFailedException(
+          "Transaction commit failed with status: %s, extraInfo: %s",
+          result.getReturnStatus(), result.getExtraInformation());
+    }
+    eventAttributeMap.put(EventAttributes.TABLE_METADATAS, tableMetadataObjs);
+  }
+
+  @Override
+  public boolean logPrefixOverlapWarning() {
+    return helper.logPrefixOverlapWarning();
+  }
+
+  @Override
+  public NamespaceResult createNamespaceWithResult(
+      Namespace namespace, Map<String, String> metadata) {
     // TODO: These should really be helpers in core Iceberg Namespace.
     Namespace parentNamespace = PolarisCatalogHelpers.getParentNamespace(namespace);
 
@@ -481,10 +524,10 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchNamespaceException(
           "Cannot create namespace %s. Parent namespace does not exist.", namespace);
     }
-    createNamespaceInternal(namespace, metadata, resolvedParent);
+    return createNamespaceInternal(namespace, metadata, resolvedParent);
   }
 
-  private void createNamespaceInternal(
+  private NamespaceResult createNamespaceInternal(
       Namespace namespace,
       Map<String, String> metadata,
       PolarisResolvedPathWrapper resolvedParent) {
@@ -532,6 +575,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
             namespace, result.getReturnStatus(), result.getExtraInformation());
       }
     }
+
+    return new NamespaceResult(entity.getId(), metadata);
   }
 
   private String resolveNamespaceLocation(Namespace namespace, Map<String, String> properties) {
@@ -752,15 +797,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public List<Namespace> listNamespaces() {
-    return listNamespaces(Namespace.empty());
-  }
-
-  @Override
-  public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return listNamespaces(namespace, PageToken.readEverything()).items();
-  }
-
   public Page<Namespace> listNamespaces(Namespace namespace, PageToken pageToken)
       throws NoSuchNamespaceException {
     PolarisResolvedPathWrapper resolvedEntities = resolvedEntityView.getResolvedPath(namespace);
@@ -787,29 +823,13 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    if (closeableGroup != null) {
-      closeableGroup.close();
-    }
-  }
-
-  @Override
-  public List<TableIdentifier> listViews(Namespace namespace) {
-    return listViews(namespace, PageToken.readEverything()).items();
-  }
-
-  public Page<TableIdentifier> listViews(Namespace namespace, PageToken pageToken) {
-    if (!namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException(
-          "Cannot list views for namespace. Namespace does not exist: '%s'", namespace);
-    }
-
-    return listTableLike(PolarisEntitySubType.ICEBERG_VIEW, namespace, pageToken);
+    helper.closeCloseables();
   }
 
   @VisibleForTesting
   @Override
   protected ViewOperations newViewOps(TableIdentifier identifier) {
-    return new BasePolarisViewOperations(catalogFileIO, identifier);
+    return new BasePolarisViewOperations(catalogFileIO(), identifier);
   }
 
   /**
@@ -835,8 +855,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     boolean purge =
         realmConfig.getConfig(FeatureConfiguration.PURGE_VIEW_METADATA_ON_DROP, catalogEntity);
 
-    return dropTableLike(PolarisEntitySubType.ICEBERG_VIEW, identifier, Map.of(), purge)
-        .isSuccess();
+    return dropTableLike(PolarisEntitySubType.ICEBERG_VIEW, identifier, purge);
   }
 
   @Override
@@ -855,90 +874,14 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
         PolarisEntitySubType.ICEBERG_TABLE, identifier, notificationRequest);
   }
 
-  private String buildPrefixedLocation(TableIdentifier tableIdentifier) {
-    StringBuilder locationBuilder = new StringBuilder();
-    locationBuilder.append(defaultBaseLocation);
-    if (!defaultBaseLocation.endsWith("/")) {
-      locationBuilder.append("/");
-    }
-
-    locationBuilder.append(LocationUtils.computeHash(tableIdentifier.toString()));
-
-    for (String ns : tableIdentifier.namespace().levels()) {
-      locationBuilder.append("/").append(URLEncoder.encode(ns, Charset.defaultCharset()));
-    }
-    locationBuilder
-        .append("/")
-        .append(URLEncoder.encode(tableIdentifier.name(), Charset.defaultCharset()))
-        .append("/");
-    return locationBuilder.toString();
-  }
-
-  /**
-   * Applies the rule controlled by DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED to a tablelike
-   * location
-   */
-  private String applyDefaultLocationObjectStoragePrefix(
-      TableIdentifier tableIdentifier, String location) {
-    boolean prefixEnabled =
-        realmConfig.getConfig(
-            FeatureConfiguration.DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED, catalogEntity);
-    boolean allowUnstructuredTableLocation =
-        realmConfig.getConfig(
-            FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION, catalogEntity);
-    boolean allowTableLocationOverlap =
-        realmConfig.getConfig(FeatureConfiguration.ALLOW_TABLE_LOCATION_OVERLAP, catalogEntity);
-    boolean optimizedSiblingCheck =
-        realmConfig.getConfig(FeatureConfiguration.OPTIMIZED_SIBLING_CHECK, catalogEntity);
-    if (location != null) {
-      return location;
-    } else if (!prefixEnabled) {
-      return location;
-    } else if (!allowUnstructuredTableLocation) {
-      throw new IllegalStateException(
-          String.format(
-              "The configuration %s is enabled, but %s is not enabled",
-              FeatureConfiguration.DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED.key(),
-              FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.key()));
-    } else if (!allowTableLocationOverlap) {
-      // TODO consider doing this check any time ALLOW_EXTERNAL_TABLE_LOCATION is enabled, not just
-      // here
-      if (!optimizedSiblingCheck) {
-        throw new IllegalStateException(
-            String.format(
-                "%s and %s are both disabled, which means that table location overlap checks are being"
-                    + " performed, but only within each namespace. However, %s is enabled, which indicates"
-                    + " that tables may be created outside of their parent namespace. This is not a safe"
-                    + " combination of configurations.",
-                FeatureConfiguration.ALLOW_TABLE_LOCATION_OVERLAP.key(),
-                FeatureConfiguration.OPTIMIZED_SIBLING_CHECK.key(),
-                FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.key()));
-      } else if (!loggedPrefixOverlapWarning.getAndSet(true)) {
-        LOGGER.warn(
-            "A table is being created with {} and {} enabled, but with {} disabled. "
-                + "This is a safe combination of configurations which may prevent table overlap, but only if the "
-                + "underlying persistence actually implements %s. Exercise caution.",
-            FeatureConfiguration.DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED.key(),
-            FeatureConfiguration.OPTIMIZED_SIBLING_CHECK.key(),
-            FeatureConfiguration.ALLOW_TABLE_LOCATION_OVERLAP.key());
-      }
-      return buildPrefixedLocation(tableIdentifier);
-    } else {
-      return buildPrefixedLocation(tableIdentifier);
-    }
-  }
-
-  /**
-   * Applies the rule controlled by REPLACE_NEW_LOCATION_PREFIX_WITH_CATALOG_DEFAULT_KEY to a
-   * tablelike location
-   */
-  private String applyReplaceNewLocationWithCatalogDefault(String specifiedTableLikeLocation) {
+  @Override
+  public String applyReplaceNewLocationWithCatalogDefault(String specifiedTableLikeLocation) {
     String replaceNewLocationPrefix = catalogEntity.getReplaceNewLocationPrefixWithCatalogDefault();
     if (specifiedTableLikeLocation != null
         && replaceNewLocationPrefix != null
         && specifiedTableLikeLocation.startsWith(replaceNewLocationPrefix)) {
       String modifiedLocation =
-          defaultBaseLocation
+          defaultBaseLocation()
               + specifiedTableLikeLocation.substring(replaceNewLocationPrefix.length());
       LOGGER
           .atDebug()
@@ -948,16 +891,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       return modifiedLocation;
     }
     return specifiedTableLikeLocation;
-  }
-
-  /**
-   * Based on configuration settings, for callsites that need to handle potentially setting a new
-   * base location for a TableLike entity, produces the transformed location if applicable, or else
-   * the unaltered specified location.
-   */
-  public String transformTableLikeLocation(TableIdentifier tableIdentifier, String location) {
-    return applyDefaultLocationObjectStoragePrefix(
-        tableIdentifier, applyReplaceNewLocationWithCatalogDefault(location));
   }
 
   /**
@@ -987,7 +920,10 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       String location,
       PolarisResolvedPathWrapper resolvedStorageEntity) {
     CatalogUtils.validateLocationsForTableLike(
-        realmConfig, identifier, Set.of(location), resolvedStorageEntity);
+        realmConfig,
+        identifier,
+        Set.of(location),
+        locationRestrictions(realmConfig(), resolvedStorageEntity));
   }
 
   /**
@@ -1370,7 +1306,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
     @Override
     public String metadataFileLocation(String filename) {
-      return metadataFileLocation(current(), filename);
+      return CatalogUtils.tableMetadataFileLocation(current(), filename);
     }
 
     @Override
@@ -1425,7 +1361,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                       tableIdentifier,
                       Set.of(latestLocationDir),
                       resolvedEntities,
-                      new HashMap<>(tableDefaultProperties),
+                      new HashMap<>(tableDefaultProperties()),
                       Set.of(PolarisStorageActions.READ, PolarisStorageActions.LIST));
               return TableMetadataParser.read(fileIO, metadataLocation);
             });
@@ -1493,7 +1429,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
         Set<String> dataLocations =
             StorageUtil.getLocationsUsedByTable(metadata.location(), metadata.properties());
         CatalogUtils.validateLocationsForTableLike(
-            realmConfig, tableIdentifier, dataLocations, resolvedStorageEntity);
+            realmConfig, tableIdentifier, dataLocations, resolvedStorageEntity.getRawFullPath());
         // also validate that the table location doesn't overlap an existing table
         dataLocations.forEach(
             location ->
@@ -1505,7 +1441,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                     resolvedStorageEntity.getRawLeafEntity()));
         // and that the metadata file points to a location within the table's directory structure
         if (metadata.metadataFileLocation() != null) {
-          validateMetadataFileInTableDir(tableIdentifier, metadata);
+          validateMetadataFileInTableDir(realmConfig, tableIdentifier, metadata);
         }
       }
 
@@ -1612,8 +1548,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
         @Override
         public String metadataFileLocation(String fileName) {
-          return BasePolarisTableOperations.this.metadataFileLocation(
-              uncommittedMetadata, fileName);
+          return CatalogUtils.tableMetadataFileLocation(uncommittedMetadata, fileName);
         }
 
         @Override
@@ -1657,61 +1592,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
       return newMetadataLocation.location();
     }
-
-    private String metadataFileLocation(TableMetadata metadata, String filename) {
-      String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
-
-      if (metadataLocation != null) {
-        return String.format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
-      } else {
-        return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
-      }
-    }
-
-    private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
-      String codecName =
-          meta.property(
-              TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
-      String fileExtension = TableMetadataParser.getFileExtension(codecName);
-      return metadataFileLocation(
-          meta,
-          String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
-    }
-  }
-
-  private static Map<String, String> buildTableMetadataPropertiesMap(TableMetadata metadata) {
-    Map<String, String> storedProperties = new HashMap<>();
-    storedProperties.put(IcebergTableLikeEntity.LOCATION, metadata.location());
-    storedProperties.put(
-        IcebergTableLikeEntity.FORMAT_VERSION, String.valueOf(metadata.formatVersion()));
-    storedProperties.put(IcebergTableLikeEntity.TABLE_UUID, metadata.uuid());
-    storedProperties.put(
-        IcebergTableLikeEntity.CURRENT_SCHEMA_ID, String.valueOf(metadata.currentSchemaId()));
-    if (metadata.currentSnapshot() != null) {
-      storedProperties.put(
-          IcebergTableLikeEntity.CURRENT_SNAPSHOT_ID,
-          String.valueOf(metadata.currentSnapshot().snapshotId()));
-    }
-    storedProperties.put(
-        IcebergTableLikeEntity.LAST_COLUMN_ID, String.valueOf(metadata.lastColumnId()));
-    storedProperties.put(IcebergTableLikeEntity.NEXT_ROW_ID, String.valueOf(metadata.nextRowId()));
-    storedProperties.put(
-        IcebergTableLikeEntity.LAST_SEQUENCE_NUMBER, String.valueOf(metadata.lastSequenceNumber()));
-    storedProperties.put(
-        IcebergTableLikeEntity.LAST_UPDATED_MILLIS, String.valueOf(metadata.lastUpdatedMillis()));
-    if (metadata.sortOrder() != null) {
-      storedProperties.put(
-          IcebergTableLikeEntity.DEFAULT_SORT_ORDER_ID,
-          String.valueOf(metadata.defaultSortOrderId()));
-    }
-    if (metadata.spec() != null) {
-      storedProperties.put(
-          IcebergTableLikeEntity.DEFAULT_SPEC_ID, String.valueOf(metadata.defaultSpecId()));
-      storedProperties.put(
-          IcebergTableLikeEntity.LAST_PARTITION_ID,
-          String.valueOf(metadata.lastAssignedPartitionId()));
-    }
-    return storedProperties;
   }
 
   /**
@@ -1836,7 +1716,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                       identifier,
                       Set.of(latestLocationDir),
                       resolvedEntities,
-                      new HashMap<>(tableDefaultProperties),
+                      new HashMap<>(tableDefaultProperties()),
                       Set.of(PolarisStorageActions.READ, PolarisStorageActions.LIST));
 
               return ViewMetadataParser.read(fileIO.newInputFile(metadataLocation));
@@ -1958,7 +1838,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     }
 
     private String writeNewMetadata(ViewMetadata metadata, int newVersion) {
-      String newMetadataFilePath = newMetadataFilePath(metadata, newVersion);
+      String newMetadataFilePath = newViewMetadataFilePath(metadata, newVersion);
       OutputFile newMetadataLocation = io().newOutputFile(newMetadataFilePath);
 
       // write the new metadata
@@ -1968,29 +1848,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       ViewMetadataParser.overwrite(metadata, newMetadataLocation);
 
       return newMetadataLocation.location();
-    }
-
-    private String newMetadataFilePath(ViewMetadata metadata, int newVersion) {
-      String codecName =
-          metadata
-              .properties()
-              .getOrDefault(
-                  ViewProperties.METADATA_COMPRESSION, ViewProperties.METADATA_COMPRESSION_DEFAULT);
-      String fileExtension = TableMetadataParser.getFileExtension(codecName);
-      return metadataFileLocation(
-          metadata,
-          String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
-    }
-
-    private String metadataFileLocation(ViewMetadata metadata, String filename) {
-      String metadataLocation = metadata.properties().get(ViewProperties.WRITE_METADATA_LOCATION);
-      if (metadataLocation != null) {
-        return String.format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
-      } else {
-        return String.format(
-            "%s/%s/%s",
-            LocationUtil.stripTrailingSlash(metadata.location()), METADATA_FOLDER_NAME, filename);
-      }
     }
 
     public FileIO io() {
@@ -2008,8 +1865,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
    * CODE_COPIED_TO_POLARIS From Apache Iceberg Version: 1.8
    */
   private abstract static class PolarisOperationsBase<T> {
-
-    protected static final String METADATA_FOLDER_NAME = "metadata";
 
     protected T currentMetadata = null;
     protected String currentMetadataLocation = null;
@@ -2087,25 +1942,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private void validateMetadataFileInTableDir(TableIdentifier identifier, TableMetadata metadata) {
-    boolean allowEscape = realmConfig.getConfig(FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION);
-    if (!allowEscape
-        && !realmConfig.getConfig(FeatureConfiguration.ALLOW_EXTERNAL_METADATA_FILE_LOCATION)) {
-      LOGGER.debug(
-          "Validating base location {} for table {} in metadata file {}",
-          metadata.location(),
-          identifier,
-          metadata.metadataFileLocation());
-      StorageLocation metadataFileLocation = StorageLocation.of(metadata.metadataFileLocation());
-      StorageLocation baseLocation = StorageLocation.of(metadata.location());
-      if (!metadataFileLocation.isChildOf(baseLocation)) {
-        throw new BadRequestException(
-            "Metadata location %s is not allowed outside of table location %s",
-            metadata.metadataFileLocation(), metadata.location());
-      }
-    }
-  }
-
   private FileIO loadFileIOForTableLike(
       TableIdentifier identifier,
       Set<String> readLocations,
@@ -2114,16 +1950,17 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       Set<PolarisStorageActions> storageActions) {
     StorageAccessConfig storageAccessConfig =
         storageAccessConfigProvider.getStorageAccessConfig(
-            identifier, readLocations, storageActions, Optional.empty(), resolvedStorageEntity);
+            identifier,
+            readLocations,
+            storageActions,
+            Optional.empty(),
+            resolvedStorageEntity.getRawFullPath());
     // Reload fileIO based on table specific context
-    FileIO fileIO = fileIOFactory.loadFileIO(storageAccessConfig, ioImplClassName, tableProperties);
+    FileIO fileIO =
+        fileIOFactory.loadFileIO(storageAccessConfig, ioImplClassName(), tableProperties);
     // ensure the new fileIO is closed when the catalog is closed
-    closeableGroup.addCloseable(fileIO);
+    helper.addCloseable(fileIO);
     return fileIO;
-  }
-
-  private PolarisCallContext getCurrentPolarisContext() {
-    return callContext.getPolarisCallContext();
   }
 
   private PolarisMetaStoreManager getMetaStoreManager() {
@@ -2140,7 +1977,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     return catalogId;
   }
 
-  private void renameTableLike(
+  @Override
+  public void renameTableLike(
       PolarisEntitySubType subType, TableIdentifier from, TableIdentifier to) {
     LOGGER.debug("Renaming tableLike from {} to {}", from, to);
     PolarisResolvedPathWrapper resolvedEntities =
@@ -2383,7 +2221,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   @SuppressWarnings("FormatStringAnnotation")
-  private @Nonnull DropEntityResult dropTableLike(
+  private @Nonnull DropEntityResult dropTableLikeInternal(
       PolarisEntitySubType subType,
       TableIdentifier identifier,
       Map<String, String> storageProperties,
@@ -2435,9 +2273,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     Preconditions.checkNotNull(notificationType, "Expected a valid notification type.");
 
     if (notificationType == NotificationType.DROP) {
-      return dropTableLike(
-              PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier, Map.of(), false /* purge */)
-          .isSuccess();
+      return dropTableLike(PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier, false /* purge */);
     } else if (notificationType == NotificationType.VALIDATE) {
       // In this mode we don't want to make any mutations, so we won't auto-create non-existing
       // parent namespaces. This means when we want to validate allowedLocations for the proposed
@@ -2455,7 +2291,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                     .toArray(String[]::new));
         resolvedStorageEntity = resolvedEntityView.getResolvedPath(nsLevel);
         if (resolvedStorageEntity != null) {
-          storageInfoEntity = FileIOUtil.findStorageInfoFromHierarchy(resolvedStorageEntity);
+          storageInfoEntity =
+              FileIOUtil.findStorageInfoFromHierarchy(resolvedStorageEntity.getRawFullPath());
           break;
         }
       }
@@ -2476,7 +2313,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
           tableIdentifier,
           Set.of(locationDir),
           resolvedStorageEntity,
-          new HashMap<>(tableDefaultProperties),
+          new HashMap<>(tableDefaultProperties()),
           Set.of(PolarisStorageActions.READ));
 
       LOGGER.debug(
@@ -2534,7 +2371,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
               tableIdentifier,
               Set.of(locationDir),
               resolvedParent,
-              new HashMap<>(tableDefaultProperties),
+              new HashMap<>(tableDefaultProperties()),
               Set.of(
                   PolarisStorageActions.READ,
                   PolarisStorageActions.WRITE,
@@ -2545,7 +2382,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       validateLocationForTableLike(tableIdentifier, tableMetadata.location());
 
       // finally, validate that the metadata file is within the table directory
-      validateMetadataFileInTableDir(tableIdentifier, tableMetadata);
+      validateMetadataFileInTableDir(realmConfig, tableIdentifier, tableMetadata);
 
       // TODO: These might fail due to concurrent update; we need to do a retry in those cases.
       if (null == existingLocation) {
@@ -2596,8 +2433,13 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private Page<TableIdentifier> listTableLike(
+  @Override
+  public Page<TableIdentifier> listTableLike(
       PolarisEntitySubType subType, Namespace namespace, PageToken pageToken) {
+    if (namespace.isEmpty()) {
+      throw noSuchNamespaceException(namespace);
+    }
+
     PolarisResolvedPathWrapper resolvedEntities = resolvedEntityView.getResolvedPath(namespace);
     if (resolvedEntities == null) {
       // Illegal state because the namespace should've already been in the static resolution set.
@@ -2622,6 +2464,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   private int getMaxMetadataRefreshRetries() {
-    return realmConfig.getConfig(FeatureConfiguration.MAX_METADATA_REFRESH_RETRIES);
+    return realmConfig.getConfig(MAX_METADATA_REFRESH_RETRIES);
   }
 }

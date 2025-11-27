@@ -84,10 +84,12 @@ import org.apache.polaris.service.catalog.Profiles;
 import org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalog;
 import org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalog;
+import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.catalog.policy.PolicyCatalog;
 import org.apache.polaris.service.config.ReservedProperties;
+import org.apache.polaris.service.context.catalog.CallContextCatalogFactory;
 import org.apache.polaris.service.context.catalog.PolarisCallContextCatalogFactory;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.events.EventAttributeMap;
@@ -206,8 +208,9 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected RealmConfig realmConfig;
   @Inject protected RealmContextHolder realmContextHolder;
   @Inject protected EventAttributeMap eventAttributeMap;
+  @Inject protected CallContextCatalogFactory callContextCatalogFactory;
 
-  protected IcebergCatalog baseCatalog;
+  protected PolarisIcebergCatalog baseCatalog;
   protected PolarisGenericTableCatalog genericTableCatalog;
   protected PolicyCatalog policyCatalog;
   protected PolarisAdminService adminService;
@@ -299,6 +302,8 @@ public abstract class PolarisAuthzTestBase {
                 storageConfigModelForFederatedCatalog,
                 storageLocationForFederatedCatalog)
             .addProperty("polaris.config.enable-sub-catalog-rbac-for-federated-catalogs", "true")
+            .addProperty(
+                CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
             .build();
     ExternalCatalog externalCatalog =
         ExternalCatalog.builder()
@@ -323,6 +328,9 @@ public abstract class PolarisAuthzTestBase {
                     .setName(CATALOG_NAME)
                     .setCatalogType("INTERNAL")
                     .setDefaultBaseLocation(storageLocation)
+                    .addProperty(
+                        CatalogProperties.FILE_IO_IMPL,
+                        "org.apache.iceberg.inmemory.InMemoryFileIO")
                     .setStorageConfigurationInfo(realmConfig, storageConfigModel, storageLocation)
                     .build()
                     .asCatalog(serviceIdentityProvider)));
@@ -497,7 +505,8 @@ public abstract class PolarisAuthzTestBase {
             storageAccessConfigProvider,
             fileIOFactory,
             polarisEventListener,
-            eventMetadataFactory);
+            eventMetadataFactory,
+            eventAttributeMap);
     this.baseCatalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -515,7 +524,7 @@ public abstract class PolarisAuthzTestBase {
 
     @SuppressWarnings("unused") // Required by CDI
     protected TestPolarisCallContextCatalogFactory() {
-      this(null, null, null, null, null, null, null, null, null, null);
+      this(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Inject
@@ -529,7 +538,8 @@ public abstract class PolarisAuthzTestBase {
         PolarisEventMetadataFactory eventMetadataFactory,
         PolarisMetaStoreManager metaStoreManager,
         CallContext callContext,
-        PolarisPrincipal principal) {
+        PolarisPrincipal principal,
+        EventAttributeMap eventAttributeMap) {
       super(
           diagnostics,
           resolverFactory,
@@ -540,7 +550,8 @@ public abstract class PolarisAuthzTestBase {
           eventMetadataFactory,
           metaStoreManager,
           callContext,
-          principal);
+          principal,
+          eventAttributeMap);
     }
 
     @Override

@@ -64,10 +64,12 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalog;
+import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
+import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.events.listeners.NoOpPolarisEventListener;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
@@ -112,7 +114,7 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
   @Inject PolarisPrincipalHolder polarisPrincipalHolder;
 
   private PolarisGenericTableCatalog genericTableCatalog;
-  private IcebergCatalog icebergCatalog;
+  private PolarisIcebergCatalog icebergCatalog;
   private AwsStorageConfigInfo storageConfigModel;
   private String realmName;
   private PolarisCallContext polarisContext;
@@ -235,7 +237,8 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
             storageAccessConfigProvider,
             fileIOFactory,
             new NoOpPolarisEventListener(),
-            eventMetadataFactory);
+            eventMetadataFactory,
+            new EventAttributeMap());
     this.icebergCatalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(

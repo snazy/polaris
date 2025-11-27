@@ -19,6 +19,8 @@
 
 package org.apache.polaris.service.catalog.iceberg;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
+
 import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Priority;
 import jakarta.decorator.Decorator;
@@ -46,7 +48,6 @@ import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
@@ -59,8 +60,7 @@ import org.apache.polaris.service.types.NotificationRequest;
 
 @Decorator
 @Priority(1000)
-public class IcebergRestCatalogEventServiceDelegator
-    implements IcebergRestCatalogApiService, CatalogAdapter {
+public class IcebergRestCatalogEventServiceDelegator implements IcebergRestCatalogApiService {
 
   @Inject @Delegate IcebergCatalogAdapter delegate;
   @Inject PolarisEventListener polarisEventListener;

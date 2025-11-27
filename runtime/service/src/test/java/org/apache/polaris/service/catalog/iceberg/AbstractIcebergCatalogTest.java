@@ -134,11 +134,13 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.Profiles;
+import org.apache.polaris.service.catalog.SupportsNotifications;
 import org.apache.polaris.service.catalog.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
+import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
@@ -180,7 +182,7 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
 
-public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCatalog> {
+public abstract class AbstractIcebergCatalogTest extends CatalogTests<PolarisIcebergCatalog> {
   static {
     org.assertj.core.api.Assumptions.setPreferredAssumptionException(
         PreferredAssumptionException.JUNIT5);
@@ -229,7 +231,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
           "catalog-override-key4");
 
   @Inject Clock clock;
-  @Inject MetaStoreManagerFactory metaStoreManagerFactory;
+  @Inject protected MetaStoreManagerFactory metaStoreManagerFactory;
   @Inject StorageCredentialCache storageCredentialCache;
   @Inject PolarisStorageIntegrationProvider storageIntegrationProvider;
   @Inject ServiceIdentityProvider serviceIdentityProvider;
@@ -246,7 +248,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
   @Inject TaskFileIOSupplier taskFileIOSupplier;
   @Inject PolarisPrincipal authenticatedRoot;
 
-  private IcebergCatalog catalog;
+  private PolarisIcebergCatalog catalog;
   private String realmName;
   private PolarisCallContext polarisContext;
   private PolarisAdminService adminService;
@@ -367,12 +369,15 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @AfterEach
   public void after() throws IOException {
-    catalog().close();
+    var c = catalog();
+    if (c != null) {
+      c.close();
+    }
     metaStoreManager.purge(polarisContext);
   }
 
   @Override
-  protected IcebergCatalog catalog() {
+  protected PolarisIcebergCatalog catalog() {
     return catalog;
   }
 
@@ -384,11 +389,11 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
    * @return a configured instance of IcebergCatalog
    */
   @Override
-  protected IcebergCatalog initCatalog(
+  protected PolarisIcebergCatalog initCatalog(
       String catalogName, Map<String, String> additionalProperties) {
-    IcebergCatalog icebergCatalog = newIcebergCatalog(CATALOG_NAME);
+    PolarisIcebergCatalog icebergCatalog = newIcebergCatalog(CATALOG_NAME);
     fileIO = new InMemoryFileIO();
-    icebergCatalog.setCatalogFileIo(fileIO);
+    icebergCatalog.setCatalogFileIO(fileIO);
     ImmutableMap.Builder<String, String> propertiesBuilder =
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
@@ -417,16 +422,16 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     return true;
   }
 
-  protected IcebergCatalog newIcebergCatalog(String catalogName) {
+  protected PolarisIcebergCatalog newIcebergCatalog(String catalogName) {
     return newIcebergCatalog(catalogName, metaStoreManager);
   }
 
-  protected IcebergCatalog newIcebergCatalog(
+  protected PolarisIcebergCatalog newIcebergCatalog(
       String catalogName, PolarisMetaStoreManager metaStoreManager) {
     return newIcebergCatalog(catalogName, metaStoreManager, fileIOFactory);
   }
 
-  protected IcebergCatalog newIcebergCatalog(
+  protected PolarisIcebergCatalog newIcebergCatalog(
       String catalogName, PolarisMetaStoreManager metaStoreManager, FileIOFactory fileIOFactory) {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
@@ -443,12 +448,13 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         storageAccessConfigProvider,
         fileIOFactory,
         polarisEventListener,
-        eventMetadataFactory);
+        eventMetadataFactory,
+        new EventAttributeMap());
   }
 
   @Test
   public void testEmptyNamespace() {
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     TableIdentifier tableInRootNs = TableIdentifier.of("table");
     String expectedMessage = "Namespace does not exist: ''";
 
@@ -496,7 +502,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         requiresNamespaceCreate(),
         "Only applicable if namespaces must be created before adding children");
 
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     catalog.createNamespace(NS);
 
     Assertions.assertThat(catalog.tableExists(TABLE))
@@ -540,7 +546,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     Assumptions.assumeTrue(
         supportsNestedNamespaces(), "Only applicable if nested namespaces are supoprted");
 
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
 
     Namespace child1 = Namespace.of("parent", "child1");
 
@@ -551,7 +557,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @Test
   public void testConcurrentWritesWithRollbackNonEmptyTable() {
-    IcebergCatalog catalog = this.catalog();
+    PolarisIcebergCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -657,7 +663,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @Test
   public void testConcurrentWritesWithRollbackWithNonReplaceSnapshotInBetween() {
-    IcebergCatalog catalog = this.catalog();
+    PolarisIcebergCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -727,7 +733,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
   @Test
   public void
       testConcurrentWritesWithRollbackEnableWithToRollbackSnapshotReferencedByOtherBranch() {
-    IcebergCatalog catalog = this.catalog();
+    PolarisIcebergCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -801,7 +807,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @Test
   public void testConcurrentWritesWithRollbackWithConcurrentWritesToDifferentBranches() {
-    IcebergCatalog catalog = this.catalog();
+    PolarisIcebergCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -887,7 +893,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/validate_table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -907,7 +916,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // We should be able to send the notification without creating the metadata file since it's
     // only validating the ability to send the CREATE/UPDATE notification possibly before actually
     // creating the table at all on the remote catalog.
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -923,7 +932,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -949,7 +958,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // filename.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -963,7 +974,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update.setTimestamp(230950845L);
     request.setPayload(update);
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Invalid location");
   }
@@ -985,7 +996,11 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     final String tableLocation = "s3://externally-owned-bucket/validate_table/";
     final String tableMetadataLocation = tableLocation + "metadata/";
     FileIOFactory fileIOFactory = spy(this.fileIOFactory);
-    IcebergCatalog catalog = newIcebergCatalog(catalog().name(), metaStoreManager, fileIOFactory);
+    PolarisIcebergCatalog catalog =
+        newIcebergCatalog(catalog().name(), metaStoreManager, fileIOFactory);
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -1006,7 +1021,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     doThrow(new ForbiddenException("Fake failure applying downscoped credentials"))
         .when(fileIOFactory)
         .loadFileIO(any(), any(), any());
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Fake failure applying downscoped credentials");
   }
@@ -1023,7 +1038,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1041,7 +1058,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1067,7 +1084,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     // Use a spy so we can inject a concurrency error
     PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
-    IcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -1107,7 +1127,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         .when(spyMetaStore)
         .createEntityIfNotExists(any(), any(), any());
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1131,7 +1151,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // The location of the metadata JSON file specified in the create will be forbidden.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1149,7 +1171,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Invalid location");
   }
@@ -1183,7 +1205,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     TableMetadata tableMetadata =
         TableMetadata.buildFromEmpty()
             .assignUUID()
@@ -1206,7 +1231,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update.setTimestamp(230950845L);
     request.setPayload(update);
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("is not allowed outside of table location");
   }
@@ -1243,7 +1268,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     TableMetadata tableMetadata =
         TableMetadata.buildFromEmpty()
             .assignUUID()
@@ -1266,7 +1294,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update.setTimestamp(230950845L);
     request.setPayload(update);
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("is not allowed outside of table location");
   }
@@ -1300,7 +1328,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     fileIO.addFile(
         tableMetadataLocation,
@@ -1319,7 +1349,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     createRequest.setPayload(create);
 
     // the create should succeed
-    catalog.sendNotification(table, createRequest);
+    supportsNotifications.sendNotification(table, createRequest);
 
     // now craft the malicious metadata file
     final String maliciousMetadataFile = tableLocation + "metadata/v2.metadata.json";
@@ -1342,7 +1372,8 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update.setTimestamp(230950849L);
     updateRequest.setPayload(update);
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, updateRequest))
+    Assertions.assertThatThrownBy(
+            () -> supportsNotifications.sendNotification(table, updateRequest))
         .isInstanceOf(BadRequestException.class)
         .hasMessageContaining("is not allowed outside of table location");
   }
@@ -1369,7 +1400,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
                     .build()
                     .asCatalog(serviceIdentityProvider)));
 
-    IcebergCatalog catalog = newIcebergCatalog(catalogWithoutStorage);
+    PolarisIcebergCatalog catalog = newIcebergCatalog(catalogWithoutStorage);
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     catalog.initialize(
         catalogWithoutStorage,
         ImmutableMap.of(
@@ -1394,7 +1428,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     if (!realmConfig
         .getConfig(FeatureConfiguration.SUPPORTED_CATALOG_STORAGE_TYPES)
         .contains("FILE")) {
-      Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+      Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
           .isInstanceOf(ForbiddenException.class)
           .hasMessageContaining("Invalid location");
     }
@@ -1419,7 +1453,10 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
                 .build()
                 .asCatalog(serviceIdentityProvider)));
 
-    IcebergCatalog catalog = newIcebergCatalog(catalogName);
+    PolarisIcebergCatalog catalog = newIcebergCatalog(catalogName);
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
+
     catalog.initialize(
         catalogName,
         ImmutableMap.of(
@@ -1446,7 +1483,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     if (!realmConfig
         .getConfig(FeatureConfiguration.SUPPORTED_CATALOG_STORAGE_TYPES)
         .contains("FILE")) {
-      Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+      Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
           .isInstanceOf(ForbiddenException.class)
           .hasMessageContaining("Invalid location");
     }
@@ -1466,7 +1503,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     if (!realmConfig
         .getConfig(FeatureConfiguration.SUPPORTED_CATALOG_STORAGE_TYPES)
         .contains("FILE")) {
-      Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, newRequest))
+      Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, newRequest))
           .isInstanceOf(ForbiddenException.class)
           .hasMessageContaining("Invalid location");
     }
@@ -1484,7 +1521,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1505,7 +1544,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1528,7 +1567,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1555,7 +1596,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1579,7 +1620,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // The location of the metadata JSON file specified in the update will be forbidden.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1606,7 +1649,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Invalid location");
   }
@@ -1623,7 +1666,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1642,7 +1687,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    catalog.sendNotification(table, request);
+    supportsNotifications.sendNotification(table, request);
 
     // Send a notification with a timestamp same as that of the previous notification, should fail
     NotificationRequest request2 = new NotificationRequest();
@@ -1654,7 +1699,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update2.setTimestamp(timestamp);
     request2.setPayload(update2);
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request2))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request2))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining(
             "A notification with a newer timestamp has been processed for table parent.child1.table");
@@ -1669,7 +1714,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update3.setTimestamp(timestamp);
     request3.setPayload(update3);
 
-    Assertions.assertThat(catalog.sendNotification(table, request3))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request3))
         .as("Drop notification should not fail despite timestamp being outdated")
         .isTrue();
   }
@@ -1686,7 +1731,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1716,7 +1763,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     fileIO.addFile(
         tableMetadataLocation, TableMetadataParser.toJson(forbiddenMetadata).getBytes(UTF_8));
 
-    Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
+    Assertions.assertThatThrownBy(() -> supportsNotifications.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Invalid location");
   }
@@ -1733,7 +1780,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1747,7 +1796,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     update.setTimestamp(230950845L);
     request.setPayload(update);
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should fail since the target table doesn't exist")
         .isFalse();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1768,7 +1817,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1789,7 +1840,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should fail since table doesn't exist")
         .isFalse();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1812,7 +1863,9 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
+    Assumptions.assumeTrue(catalog instanceof SupportsNotifications);
+    SupportsNotifications supportsNotifications = (SupportsNotifications) catalog;
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1839,7 +1892,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
         tableMetadataLocation,
         TableMetadataParser.toJson(createSampleTableMetadata(tableLocation)).getBytes(UTF_8));
 
-    Assertions.assertThat(catalog.sendNotification(table, request))
+    Assertions.assertThat(supportsNotifications.sendNotification(table, request))
         .as("Notification should be sent successfully")
         .isTrue();
     Assertions.assertThat(catalog.namespaceExists(namespace))
@@ -1935,7 +1988,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
                     realmConfig, noPurgeStorageConfigModel, storageLocation)
                 .build()
                 .asCatalog(serviceIdentityProvider)));
-    IcebergCatalog noPurgeCatalog =
+    PolarisIcebergCatalog noPurgeCatalog =
         newIcebergCatalog(noPurgeCatalogName, metaStoreManager, fileIOFactory);
     noPurgeCatalog.initialize(
         noPurgeCatalogName,
@@ -2028,7 +2081,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
   @Test
   public void testFileIOWrapper() {
     MeasuredFileIOFactory measured = new MeasuredFileIOFactory();
-    IcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
+    PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2088,7 +2141,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @Test
   public void testRegisterTableWithSlashlessMetadataLocation() {
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     Assertions.assertThatThrownBy(
             () -> catalog.registerTable(TABLE, "metadata_location_without_slashes"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -2109,7 +2162,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
     PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
-    final IcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    final PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2146,7 +2199,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
     PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
-    final IcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    final PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2218,14 +2271,13 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
     Assumptions.assumeTrue(
         requiresNamespaceCreate(),
         "Only applicable if namespaces must be created before adding children");
+    Assumptions.assumeTrue(catalog instanceof IcebergCatalog, "Only applicable for IcebergCatalog");
 
     catalog.createNamespace(NS);
     catalog.buildTable(TABLE, SCHEMA).create();
 
-    IcebergCatalog.BasePolarisTableOperations realOps =
-        (IcebergCatalog.BasePolarisTableOperations)
-            catalog.newTableOps(TABLE, updateMetadataOnCommit);
-    IcebergCatalog.BasePolarisTableOperations ops = Mockito.spy(realOps);
+    TableOperations realOps = ((IcebergCatalog) catalog).newTableOps(TABLE, updateMetadataOnCommit);
+    TableOperations ops = Mockito.spy(realOps);
 
     try (MockedStatic<TableMetadataParser> mocked =
         Mockito.mockStatic(TableMetadataParser.class, Mockito.CALLS_REAL_METHODS)) {
@@ -2354,7 +2406,7 @@ public abstract class AbstractIcebergCatalogTest extends CatalogTests<IcebergCat
 
   @Test
   public void testEventsAreEmitted() {
-    IcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     Table table = catalog.buildTable(TestData.TABLE, TestData.SCHEMA).create();
 

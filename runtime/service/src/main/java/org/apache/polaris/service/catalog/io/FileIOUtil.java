@@ -18,16 +18,13 @@
  */
 package org.apache.polaris.service.catalog.io;
 
+import java.util.List;
 import java.util.Optional;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class FileIOUtil {
-  private static final Logger LOGGER = LoggerFactory.getLogger(FileIOUtil.class);
-
   private FileIOUtil() {}
 
   /**
@@ -42,14 +39,18 @@ public class FileIOUtil {
    * @return an {@link Optional} containing the entity with storage config, or empty if not found
    */
   public static Optional<PolarisEntity> findStorageInfoFromHierarchy(
+      List<PolarisEntity> resolvedStorageEntityPath) {
+    return resolvedStorageEntityPath.reversed().stream()
+        .filter(
+            e ->
+                e.getInternalPropertiesAsMap()
+                    .containsKey(PolarisEntityConstants.getStorageConfigInfoPropertyName()))
+        .findFirst();
+  }
+
+  @Deprecated
+  public static Optional<PolarisEntity> findStorageInfoFromHierarchy(
       PolarisResolvedPathWrapper resolvedStorageEntity) {
-    Optional<PolarisEntity> storageInfoEntity =
-        resolvedStorageEntity.getRawFullPath().reversed().stream()
-            .filter(
-                e ->
-                    e.getInternalPropertiesAsMap()
-                        .containsKey(PolarisEntityConstants.getStorageConfigInfoPropertyName()))
-            .findFirst();
-    return storageInfoEntity;
+    return findStorageInfoFromHierarchy(resolvedStorageEntity.getRawFullPath());
   }
 }

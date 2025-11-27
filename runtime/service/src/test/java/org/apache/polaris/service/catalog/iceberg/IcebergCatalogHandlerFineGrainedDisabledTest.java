@@ -28,12 +28,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
-import org.apache.polaris.service.context.catalog.CallContextCatalogFactory;
+import org.apache.polaris.service.catalog.common.metastore.MetaStoreCatalogAccessFactory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -45,7 +46,6 @@ import org.mockito.Mockito;
 @TestProfile(IcebergCatalogHandlerFineGrainedDisabledTest.Profile.class)
 public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTestBase {
 
-  @Inject CallContextCatalogFactory callContextCatalogFactory;
   @Inject CatalogPrefixParser prefixParser;
 
   @SuppressWarnings("unchecked")
@@ -58,25 +58,27 @@ public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTe
     return mock;
   }
 
-  private IcebergCatalogHandler newWrapper() {
+  protected IcebergCatalogHandler newWrapper() {
     PolarisPrincipal authenticatedPrincipal = PolarisPrincipal.of(principalEntity, Set.of());
+    var catalogStore =
+        new MetaStoreCatalogAccessFactory(
+                metaStoreManager,
+                callContext,
+                callContextCatalogFactory,
+                resolutionManifestFactory,
+                resolverFactory,
+                polarisAuthorizer,
+                authenticatedPrincipal)
+            .forCatalog(CATALOG_NAME, Catalog.class);
     return new IcebergCatalogHandler(
-        diagServices,
-        callContext,
         prefixParser,
-        resolverFactory,
-        resolutionManifestFactory,
-        metaStoreManager,
+        catalogStore,
+        realmConfig,
         credentialManager,
-        authenticatedPrincipal,
-        callContextCatalogFactory,
-        CATALOG_NAME,
-        polarisAuthorizer,
         reservedProperties,
         catalogHandlerUtils,
         emptyExternalCatalogFactory(),
-        storageAccessConfigProvider,
-        eventAttributeMap);
+        storageAccessConfigProvider);
   }
 
   public static class Profile extends PolarisAuthzTestBase.Profile {

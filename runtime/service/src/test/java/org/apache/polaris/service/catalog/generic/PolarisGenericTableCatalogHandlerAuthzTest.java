@@ -25,9 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.catalog.GenericTableCatalog;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
+import org.apache.polaris.service.catalog.common.CatalogAccessFactory;
+import org.apache.polaris.service.catalog.common.metastore.MetaStoreCatalogAccessFactory;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 @QuarkusTest
 @TestProfile(PolarisAuthzTestBase.Profile.class)
@@ -45,14 +49,20 @@ public class PolarisGenericTableCatalogHandlerAuthzTest extends PolarisAuthzTest
       Set<String> activatedPrincipalRoles, String catalogName) {
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(principalEntity, activatedPrincipalRoles);
+
+    CatalogAccessFactory catalogAccessFactory =
+        new MetaStoreCatalogAccessFactory(
+            metaStoreManager,
+            callContext,
+            Mockito.mock(),
+            resolutionManifestFactory,
+            resolverFactory,
+            polarisAuthorizer,
+            authenticatedPrincipal);
+
     return new GenericTableCatalogHandler(
-        diagServices,
-        callContext,
-        resolutionManifestFactory,
-        metaStoreManager,
-        authenticatedPrincipal,
-        catalogName,
-        polarisAuthorizer,
+        realmConfig,
+        catalogAccessFactory.forCatalog(catalogName, GenericTableCatalog.class),
         null,
         null);
   }

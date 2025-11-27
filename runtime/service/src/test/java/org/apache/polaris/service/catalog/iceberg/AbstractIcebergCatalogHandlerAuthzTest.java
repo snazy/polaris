@@ -68,6 +68,7 @@ import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
+import org.apache.polaris.service.catalog.common.metastore.MetaStoreCatalogAccessFactory;
 import org.apache.polaris.service.context.catalog.CallContextCatalogFactory;
 import org.apache.polaris.service.context.catalog.PolarisCallContextCatalogFactory;
 import org.apache.polaris.service.http.IfNoneMatch;
@@ -93,12 +94,12 @@ import org.mockito.Mockito;
  */
 public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuthzTestBase {
 
-  @Inject CallContextCatalogFactory callContextCatalogFactory;
+  @Inject protected CallContextCatalogFactory callContextCatalogFactory;
   @Inject Instance<ExternalCatalogFactory> externalCatalogFactories;
-  @Inject CatalogPrefixParser prefixParser;
+  @Inject protected CatalogPrefixParser prefixParser;
 
   @SuppressWarnings("unchecked")
-  private static Instance<ExternalCatalogFactory> emptyExternalCatalogFactory() {
+  protected static Instance<ExternalCatalogFactory> emptyExternalCatalogFactory() {
     Instance<ExternalCatalogFactory> mock = Mockito.mock(Instance.class);
     Mockito.when(mock.select(Mockito.any())).thenReturn(mock);
     Mockito.when(mock.isUnsatisfied()).thenReturn(true);
@@ -117,23 +118,41 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
       Set<String> activatedPrincipalRoles, String catalogName, CallContextCatalogFactory factory) {
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(principalEntity, activatedPrincipalRoles);
+    return newWrapper(catalogName, factory, authenticatedPrincipal);
+  }
+
+  private IcebergCatalogHandler newWrapper(
+      String catalogName,
+      CallContextCatalogFactory factory,
+      PolarisPrincipal authenticatedPrincipal) {
+    return newWrapper(catalogName, callContext, realmConfig, factory, authenticatedPrincipal);
+  }
+
+  protected IcebergCatalogHandler newWrapper(
+      String catalogName,
+      CallContext callContext,
+      RealmConfig realmConfig,
+      CallContextCatalogFactory factory,
+      PolarisPrincipal authenticatedPrincipal) {
+    var catalogStore =
+        new MetaStoreCatalogAccessFactory(
+                metaStoreManager,
+                callContext,
+                factory,
+                resolutionManifestFactory,
+                resolverFactory,
+                polarisAuthorizer,
+                authenticatedPrincipal)
+            .forCatalog(catalogName, Catalog.class);
     return new IcebergCatalogHandler(
-        diagServices,
-        callContext,
         prefixParser,
-        resolverFactory,
-        resolutionManifestFactory,
-        metaStoreManager,
+        catalogStore,
+        realmConfig,
         credentialManager,
-        authenticatedPrincipal,
-        factory,
-        catalogName,
-        polarisAuthorizer,
         reservedProperties,
         catalogHandlerUtils,
         emptyExternalCatalogFactory(),
-        storageAccessConfigProvider,
-        eventAttributeMap);
+        storageAccessConfigProvider);
   }
 
   protected void doTestInsufficientPrivileges(
@@ -259,23 +278,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(newPrincipal.getPrincipal(), Set.of(PRINCIPAL_ROLE1, PRINCIPAL_ROLE2));
     IcebergCatalogHandler wrapper =
-        new IcebergCatalogHandler(
-            diagServices,
-            callContext,
-            prefixParser,
-            resolverFactory,
-            resolutionManifestFactory,
-            metaStoreManager,
-            credentialManager,
-            authenticatedPrincipal,
-            callContextCatalogFactory,
-            CATALOG_NAME,
-            polarisAuthorizer,
-            reservedProperties,
-            catalogHandlerUtils,
-            emptyExternalCatalogFactory(),
-            storageAccessConfigProvider,
-            eventAttributeMap);
+        newWrapper(CATALOG_NAME, callContextCatalogFactory, authenticatedPrincipal);
 
     // a variety of actions are all disallowed because the principal's credentials must be rotated
     doTestInsufficientPrivileges(
@@ -299,23 +302,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     PolarisPrincipal authenticatedPrincipal1 =
         PolarisPrincipal.of(refreshPrincipal, Set.of(PRINCIPAL_ROLE1, PRINCIPAL_ROLE2));
     IcebergCatalogHandler refreshedWrapper =
-        new IcebergCatalogHandler(
-            diagServices,
-            callContext,
-            prefixParser,
-            resolverFactory,
-            resolutionManifestFactory,
-            metaStoreManager,
-            credentialManager,
-            authenticatedPrincipal1,
-            callContextCatalogFactory,
-            CATALOG_NAME,
-            polarisAuthorizer,
-            reservedProperties,
-            catalogHandlerUtils,
-            emptyExternalCatalogFactory(),
-            storageAccessConfigProvider,
-            eventAttributeMap);
+        newWrapper(CATALOG_NAME, callContextCatalogFactory, authenticatedPrincipal1);
 
     doTestSufficientPrivilegeSets(
         List.of(Set.of(PolarisPrivilege.NAMESPACE_LIST)),
@@ -1189,23 +1176,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     Mockito.when(mockCallContext.getPolarisCallContext())
         .thenReturn(callContext.getPolarisCallContext());
 
-    return new IcebergCatalogHandler(
-        diagServices,
-        mockCallContext,
-        prefixParser,
-        resolverFactory,
-        resolutionManifestFactory,
-        metaStoreManager,
-        credentialManager,
-        authenticatedPrincipal,
-        factory,
-        catalogName,
-        polarisAuthorizer,
-        reservedProperties,
-        catalogHandlerUtils,
-        emptyExternalCatalogFactory(),
-        storageAccessConfigProvider,
-        eventAttributeMap);
+    return newWrapper(
+        catalogName, mockCallContext, customRealmConfig, factory, authenticatedPrincipal);
   }
 
   @Test
@@ -1916,7 +1888,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
             eventMetadataFactory,
             metaStoreManager,
             callContext,
-            authenticatedRoot) {
+            authenticatedRoot,
+            eventAttributeMap) {
           @Override
           public Catalog createCallContextCatalog(PolarisResolutionManifest resolvedManifest) {
             Catalog catalog = super.createCallContextCatalog(resolvedManifest);
