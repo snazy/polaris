@@ -16,25 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.it.nosql;
+package org.apache.polaris.service.catalog.iceberg.nosql.rest;
+
+import static org.apache.polaris.service.catalog.Profiles.NOSQL_IN_MEM;
 
 import com.google.common.collect.ImmutableMap;
-import io.quarkus.test.junit.QuarkusIntegrationTest;
+import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import java.util.Map;
-import org.apache.polaris.service.it.PolarisRestCatalogMinIOIT;
+import org.apache.polaris.service.catalog.iceberg.AbstractIcebergCatalogRestTest;
+import org.apache.polaris.service.catalog.iceberg.AbstractIcebergCatalogTest;
 
-@QuarkusIntegrationTest
-@TestProfile(value = NoSqlCatalogIT.Profile.class)
-public class NoSqlCatalogIT extends PolarisRestCatalogMinIOIT {
-  public static class Profile extends NoSqlTesting.PersistenceInMemoryProfile {
+@QuarkusTest
+@TestProfile(IcebergCatalogRestNoSqlInMemTest.Profile.class)
+public class IcebergCatalogRestNoSqlInMemTest extends AbstractIcebergCatalogRestTest {
+
+  public static class Profile extends AbstractIcebergCatalogTest.Profile {
     @Override
     public Map<String, String> getConfigOverrides() {
       return ImmutableMap.<String, String>builder()
           .putAll(super.getConfigOverrides())
-          .put("polaris.storage.aws.access-key", MINIO_ACCESS_KEY)
-          .put("polaris.storage.aws.secret-key", MINIO_SECRET_KEY)
-          .put("polaris.features.\"SKIP_CREDENTIAL_SUBSCOPING_INDIRECTION\"", "false")
+          .putAll(NOSQL_IN_MEM)
+          .put("polaris.persistence.catalog-store-type", "nosql")
           .build();
     }
   }

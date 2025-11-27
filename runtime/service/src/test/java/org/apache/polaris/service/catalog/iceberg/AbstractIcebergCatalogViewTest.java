@@ -21,7 +21,6 @@ package org.apache.polaris.service.catalog.iceberg;
 import com.google.common.collect.ImmutableMap;
 import io.quarkus.test.junit.QuarkusMock;
 import jakarta.inject.Inject;
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -29,7 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.polaris.core.PolarisCallContext;
@@ -53,12 +53,10 @@ import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
-import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.Profiles;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
-import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
@@ -78,8 +76,8 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
-public abstract class AbstractIcebergCatalogViewTest
-    extends ViewCatalogTests<PolarisIcebergCatalog> {
+public abstract class AbstractIcebergCatalogViewTest<C extends ViewCatalog & SupportsNamespaces>
+    extends ViewCatalogTests<C> {
   static {
     Assumptions.setPreferredAssumptionException(PreferredAssumptionException.JUNIT5);
   }
@@ -106,26 +104,24 @@ public abstract class AbstractIcebergCatalogViewTest
           CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3",
           CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
 
-  @Inject ServiceIdentityProvider serviceIdentityProvider;
-  @Inject StorageCredentialCache storageCredentialCache;
-  @Inject PolarisDiagnostics diagServices;
-  @Inject PolarisEventListener polarisEventListener;
-  @Inject PolarisEventMetadataFactory eventMetadataFactory;
-  @Inject ResolverFactory resolverFactory;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
-  @Inject PolarisMetaStoreManager metaStoreManager;
-  @Inject UserSecretsManager userSecretsManager;
-  @Inject CallContext callContext;
-  @Inject RealmConfig realmConfig;
-  @Inject StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject FileIOFactory fileIOFactory;
+  @Inject protected ServiceIdentityProvider serviceIdentityProvider;
+  @Inject protected StorageCredentialCache storageCredentialCache;
+  @Inject protected PolarisDiagnostics diagServices;
+  @Inject protected PolarisEventListener polarisEventListener;
+  @Inject protected PolarisEventMetadataFactory eventMetadataFactory;
+  @Inject protected ResolverFactory resolverFactory;
+  @Inject protected ResolutionManifestFactory resolutionManifestFactory;
+  @Inject protected PolarisMetaStoreManager metaStoreManager;
+  @Inject protected UserSecretsManager userSecretsManager;
+  @Inject protected CallContext callContext;
+  @Inject protected RealmConfig realmConfig;
+  @Inject protected StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject protected FileIOFactory fileIOFactory;
 
-  private PolarisIcebergCatalog catalog;
+  protected String realmName;
+  protected PolarisCallContext polarisContext;
 
-  private String realmName;
-  private PolarisCallContext polarisContext;
-
-  private TestPolarisEventListener testPolarisEventListener;
+  protected TestPolarisEventListener testPolarisEventListener;
 
   @BeforeAll
   public static void setUpMocks() {
@@ -192,48 +188,24 @@ public abstract class AbstractIcebergCatalogViewTest
                 .build()
                 .asCatalog(serviceIdentityProvider)));
 
-    PolarisPassthroughResolutionView passthroughView =
-        new PolarisPassthroughResolutionView(
-            resolutionManifestFactory, authenticatedRoot, CATALOG_NAME);
-
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
     testPolarisEventListener.clear();
-    this.catalog =
-        new IcebergCatalog(
-            diagServices,
-            resolverFactory,
-            metaStoreManager,
-            polarisContext,
-            passthroughView,
-            authenticatedRoot,
-            Mockito.mock(),
-            storageAccessConfigProvider,
-            fileIOFactory,
-            polarisEventListener,
-            eventMetadataFactory,
-            new EventAttributeMap());
+
+    setupCatalog(authenticatedRoot);
+
     Map<String, String> properties =
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
             .putAll(VIEW_PREFIXES)
             .build();
-    this.catalog.initialize(CATALOG_NAME, properties);
+    catalog().initialize(CATALOG_NAME, properties);
   }
+
+  protected abstract void setupCatalog(PolarisPrincipal authenticatedRoot);
 
   @AfterEach
-  public void after() throws IOException {
-    catalog().close();
+  public void purgeRealm() {
     metaStoreManager.purge(polarisContext);
-  }
-
-  @Override
-  protected PolarisIcebergCatalog catalog() {
-    return catalog;
-  }
-
-  @Override
-  protected Catalog tableCatalog() {
-    return catalog;
   }
 
   @Override
@@ -243,7 +215,7 @@ public abstract class AbstractIcebergCatalogViewTest
 
   @Test
   public void testEventsAreEmitted() {
-    PolarisIcebergCatalog catalog = catalog();
+    C catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     View view =
         catalog

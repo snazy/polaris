@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
+package org.apache.polaris.service.catalog.iceberg.nosql.metastore;
 
 import static org.apache.polaris.service.catalog.Profiles.NOSQL_IN_MEM;
 
@@ -30,10 +30,11 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.service.catalog.iceberg.AbstractIcebergCatalogTest;
 
 @QuarkusTest
-@TestProfile(IcebergCatalogNoSqlInMemTest.Profile.class)
-public class IcebergCatalogNoSqlInMemTest extends AbstractIcebergCatalogTest {
+@TestProfile(IcebergCatalogMetaStoreNoSqlInMemTest.Profile.class)
+public class IcebergCatalogMetaStoreNoSqlInMemTest extends AbstractIcebergCatalogTest {
 
   public static class Profile extends AbstractIcebergCatalogTest.Profile {
     @Override

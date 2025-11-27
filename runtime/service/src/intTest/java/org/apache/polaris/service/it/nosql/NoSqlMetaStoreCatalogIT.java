@@ -16,41 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
-
-import static org.apache.polaris.service.catalog.Profiles.NOSQL_IN_MEM;
+package org.apache.polaris.service.it.nosql;
 
 import com.google.common.collect.ImmutableMap;
-import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.QuarkusIntegrationTest;
 import io.quarkus.test.junit.TestProfile;
-import jakarta.inject.Inject;
-import java.util.List;
 import java.util.Map;
-import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
+import org.apache.polaris.service.it.PolarisRestCatalogMinIOIT;
 
-@QuarkusTest
-@TestProfile(IcebergViewCatalogNoSqlInMemTest.Profile.class)
-public class IcebergViewCatalogNoSqlInMemTest extends AbstractIcebergCatalogViewTest {
-
-  @Inject MetaStoreManagerFactory metaStoreManagerFactory;
-
-  public static class Profile extends AbstractIcebergCatalogViewTest.Profile {
+@QuarkusIntegrationTest
+@TestProfile(value = NoSqlMetaStoreCatalogIT.Profile.class)
+public class NoSqlMetaStoreCatalogIT extends PolarisRestCatalogMinIOIT {
+  public static class Profile extends NoSqlTesting.PersistenceInMemoryProfile {
     @Override
     public Map<String, String> getConfigOverrides() {
       return ImmutableMap.<String, String>builder()
           .putAll(super.getConfigOverrides())
-          .putAll(NOSQL_IN_MEM)
+          .put("polaris.storage.aws.access-key", MINIO_ACCESS_KEY)
+          .put("polaris.storage.aws.secret-key", MINIO_SECRET_KEY)
+          .put("polaris.features.\"SKIP_CREDENTIAL_SUBSCOPING_INDIRECTION\"", "false")
           .build();
     }
-  }
-
-  @Override
-  protected void bootstrapRealm(String realmName) {
-    metaStoreManagerFactory
-        .bootstrapRealms(
-            List.of(realmName),
-            RootCredentialsSet.fromList(List.of(realmName + ",aClientId,aSecret")))
-        .get(realmName);
   }
 }

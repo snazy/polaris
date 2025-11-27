@@ -39,7 +39,10 @@ dependencies {
   compileOnly(project(":polaris-immutables"))
   annotationProcessor(project(":polaris-immutables", configuration = "processor"))
 
-  runtimeOnly(project(":polaris-persistence-nosql-metastore"))
+  implementation(project(":polaris-idgen-api"))
+  implementation(project(":polaris-persistence-nosql-metastore"))
+  implementation(project(":polaris-persistence-nosql-metastore-types"))
+  implementation(project(":polaris-persistence-nosql-api"))
   runtimeOnly(project(":polaris-persistence-nosql-cdi-quarkus"))
   runtimeOnly(project(":polaris-persistence-nosql-cdi-quarkus-distcache"))
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
