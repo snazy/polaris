@@ -18,8 +18,6 @@
  */
 package org.apache.polaris.extension.auth.opa;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
@@ -54,6 +52,8 @@ import org.apache.polaris.extension.auth.opa.model.ImmutableResource;
 import org.apache.polaris.extension.auth.opa.model.ImmutableResourceEntity;
 import org.apache.polaris.extension.auth.opa.model.ResourceEntity;
 import org.apache.polaris.extension.auth.opa.token.BearerTokenProvider;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * OPA-based implementation of {@link PolarisAuthorizer}.

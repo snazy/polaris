@@ -18,8 +18,6 @@
  */
 package org.apache.polaris.persistence.nosql.api;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import java.util.stream.Stream;
@@ -27,6 +25,8 @@ import org.apache.polaris.immutables.PolarisImmutable;
 import org.apache.polaris.misc.types.memorysize.MemorySize;
 import org.apache.polaris.persistence.nosql.api.commit.RetryConfig;
 import org.immutables.value.Value;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
 
 @ConfigMapping(prefix = "polaris.persistence")
 @JsonSerialize(as = ImmutableBuildablePersistenceParams.class)

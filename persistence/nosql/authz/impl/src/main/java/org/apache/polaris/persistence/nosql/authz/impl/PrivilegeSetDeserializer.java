@@ -20,21 +20,21 @@ package org.apache.polaris.persistence.nosql.authz.impl;
 
 import static org.apache.polaris.persistence.nosql.authz.impl.JacksonPrivilegesModule.currentPrivileges;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import java.io.IOException;
 import org.apache.polaris.persistence.nosql.authz.api.PrivilegeSet;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DatabindException;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.ValueDeserializer;
 
-class PrivilegeSetDeserializer extends JsonDeserializer<PrivilegeSet> {
+class PrivilegeSetDeserializer extends ValueDeserializer<PrivilegeSet> {
   @Override
-  public PrivilegeSet deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+  public PrivilegeSet deserialize(JsonParser p, DeserializationContext ctxt) {
     switch (p.currentToken()) {
       case VALUE_NULL:
         return new PrivilegeSetImpl(currentPrivileges(), new byte[0]);
       case VALUE_STRING:
+      case VALUE_EMBEDDED_OBJECT:
         // Internal, storage serialization format.
         var bytes = p.getBinaryValue();
         return new PrivilegeSetImpl(currentPrivileges(), bytes);
@@ -45,7 +45,7 @@ class PrivilegeSetDeserializer extends JsonDeserializer<PrivilegeSet> {
         for (var t = p.nextToken(); ; t = p.nextToken()) {
           // Note: switch(t) lets checkstyle fail
           if (t == JsonToken.VALUE_STRING) {
-            builder.addPrivilege(privileges.byName(p.getText()));
+            builder.addPrivilege(privileges.byName(p.getString()));
           }
           if (t == JsonToken.END_ARRAY) {
             break;
@@ -53,7 +53,7 @@ class PrivilegeSetDeserializer extends JsonDeserializer<PrivilegeSet> {
         }
         return builder.build();
       default:
-        throw new JsonMappingException(p, "Unexpected JSON token " + p.currentToken());
+        throw DatabindException.from(p, "Unexpected JSON token " + p.currentToken());
     }
   }
 }

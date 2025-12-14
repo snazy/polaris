@@ -29,6 +29,8 @@ import org.apache.polaris.immutables.PolarisImmutable;
 @PolarisImmutable
 @JsonSerialize(as = ImmutableGcpStorageConfigurationInfo.class)
 @JsonDeserialize(as = ImmutableGcpStorageConfigurationInfo.class)
+@tools.jackson.databind.annotation.JsonSerialize(as = ImmutableGcpStorageConfigurationInfo.class)
+@tools.jackson.databind.annotation.JsonDeserialize(as = ImmutableGcpStorageConfigurationInfo.class)
 @JsonTypeName("GcpStorageConfigurationInfo")
 public abstract class GcpStorageConfigurationInfo extends PolarisStorageConfigurationInfo {
 

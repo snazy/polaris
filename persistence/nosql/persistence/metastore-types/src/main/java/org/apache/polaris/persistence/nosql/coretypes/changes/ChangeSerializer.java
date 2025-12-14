@@ -22,10 +22,6 @@ import static org.apache.polaris.persistence.varint.VarInt.putVarInt;
 import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
 import static org.apache.polaris.persistence.varint.VarInt.varIntLen;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
-import com.fasterxml.jackson.dataformat.smile.databind.SmileMapper;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.primitives.Ints;
 import jakarta.annotation.Nonnull;
@@ -35,6 +31,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.util.ByteBufferBackedInputStream;
+import tools.jackson.dataformat.smile.SmileMapper;
 
 /**
  * Index element value serializer for {@link Change} objects.
@@ -46,11 +45,7 @@ import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
  * usually just one changed entity per commit.
  */
 final class ChangeSerializer implements IndexValueSerializer<Change> {
-  static ObjectMapper MAPPER =
-      SmileMapper.builder()
-          .findAndAddModules()
-          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-          .build();
+  static ObjectMapper MAPPER = SmileMapper.builder().findAndAddModules().build();
 
   @Override
   public int serializedSize(@Nullable Change value) {
@@ -67,27 +62,19 @@ final class ChangeSerializer implements IndexValueSerializer<Change> {
   @Nonnull
   @Override
   public ByteBuffer serialize(@Nullable Change value, @Nonnull ByteBuffer target) {
-    try {
-      var bytes = MAPPER.writeValueAsBytes(value);
-      putVarInt(target, bytes.length);
-      target.put(bytes);
-      return target;
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    var bytes = MAPPER.writeValueAsBytes(value);
+    putVarInt(target, bytes.length);
+    target.put(bytes);
+    return target;
   }
 
   @Nullable
   @Override
   public Change deserialize(@Nonnull ByteBuffer buffer) {
-    try {
-      var len = readVarInt(buffer);
-      var readBuf = buffer.duplicate().limit(buffer.position() + len);
-      buffer.position(buffer.position() + len);
-      return MAPPER.readValue(new ByteBufferBackedInputStream(readBuf), Change.class);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    var len = readVarInt(buffer);
+    var readBuf = buffer.duplicate().limit(buffer.position() + len);
+    buffer.position(buffer.position() + len);
+    return MAPPER.readValue(new ByteBufferBackedInputStream(readBuf), Change.class);
   }
 
   @Override

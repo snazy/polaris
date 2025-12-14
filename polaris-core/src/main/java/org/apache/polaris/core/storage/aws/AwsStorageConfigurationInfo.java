@@ -38,6 +38,8 @@ import org.immutables.value.Value;
 @PolarisImmutable
 @JsonSerialize(as = ImmutableAwsStorageConfigurationInfo.class)
 @JsonDeserialize(as = ImmutableAwsStorageConfigurationInfo.class)
+@tools.jackson.databind.annotation.JsonSerialize(as = ImmutableAwsStorageConfigurationInfo.class)
+@tools.jackson.databind.annotation.JsonDeserialize(as = ImmutableAwsStorageConfigurationInfo.class)
 @JsonTypeName("AwsStorageConfigurationInfo")
 public abstract class AwsStorageConfigurationInfo extends PolarisStorageConfigurationInfo {
 

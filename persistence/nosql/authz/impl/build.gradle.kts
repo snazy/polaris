@@ -32,8 +32,8 @@ dependencies {
   implementation(libs.agrona)
   implementation(libs.guava)
 
-  implementation(platform(libs.jackson.bom))
-  implementation("com.fasterxml.jackson.core:jackson-databind")
+  implementation(platform(libs.jackson3.bom))
+  implementation("tools.jackson.core:jackson-databind")
 
   compileOnly(libs.jakarta.annotation.api)
   compileOnly(libs.jakarta.validation.api)
@@ -55,6 +55,6 @@ dependencies {
   testImplementation(libs.weld.junit5)
   testRuntimeOnly(libs.smallrye.jandex)
 
-  testFixturesCompileOnly(platform(libs.jackson.bom))
-  testFixturesCompileOnly("com.fasterxml.jackson.core:jackson-databind")
+  testFixturesCompileOnly(platform(libs.jackson3.bom))
+  testFixturesCompileOnly("tools.jackson.core:jackson-databind")
 }

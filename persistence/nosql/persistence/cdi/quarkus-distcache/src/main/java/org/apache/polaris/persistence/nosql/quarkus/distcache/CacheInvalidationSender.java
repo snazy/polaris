@@ -29,9 +29,6 @@ import static org.apache.polaris.persistence.nosql.quarkus.distcache.QuarkusDist
 import static org.apache.polaris.persistence.nosql.quarkus.distcache.QuarkusDistributedCacheInvalidationsConfig.CONFIG_SERVICE_NAMES;
 import static org.apache.polaris.persistence.nosql.quarkus.distcache.QuarkusDistributedCacheInvalidationsConfig.CONFIG_VALID_TOKENS;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.common.annotations.VisibleForTesting;
 import io.quarkus.runtime.Startup;
 import io.vertx.core.Future;
@@ -63,6 +60,8 @@ import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Sender for distributed cache invalidation messages.
@@ -245,12 +244,7 @@ class CacheInvalidationSender implements DistributedCacheInvalidation.Sender {
       List<CacheInvalidation> batch, List<String> resolvedAddresses) {
     LOGGER.trace("Submitting {} invalidations", batch.size());
 
-    String json;
-    try {
-      json = objectMapper.writeValueAsString(cacheInvalidations(batch));
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    String json = objectMapper.writeValueAsString(cacheInvalidations(batch));
 
     var futures =
         new ArrayList<Future<Map.Entry<HttpClientResponse, Buffer>>>(resolvedAddresses.size());

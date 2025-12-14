@@ -29,14 +29,16 @@ val jsonSchemaGenerator = sourceSets.create("jsonSchemaGenerator")
 dependencies {
   implementation(project(":polaris-core"))
   implementation(libs.apache.httpclient5)
-  implementation(platform(libs.jackson.bom))
-  implementation("com.fasterxml.jackson.core:jackson-core")
-  implementation("com.fasterxml.jackson.core:jackson-databind")
+  implementation(platform(libs.jackson3.bom))
+  implementation("tools.jackson.core:jackson-core")
+  implementation("tools.jackson.core:jackson-databind")
   implementation(libs.guava)
   implementation(libs.slf4j.api)
   implementation(libs.auth0.jwt)
   implementation(project(":polaris-async-api"))
 
+  // Jackson's JSON schema generator is no longer actively maintained and has not been updated for
+  // Jackson 3.
   add(jsonSchemaGenerator.implementationConfigurationName, project(":polaris-extensions-auth-opa"))
   add(jsonSchemaGenerator.implementationConfigurationName, platform(libs.jackson.bom))
   add(

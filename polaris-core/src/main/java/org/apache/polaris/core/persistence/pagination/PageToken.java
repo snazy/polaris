@@ -31,6 +31,8 @@ import org.apache.polaris.immutables.PolarisImmutable;
 @PolarisImmutable
 @JsonSerialize(as = ImmutablePageToken.class)
 @JsonDeserialize(as = ImmutablePageToken.class)
+@tools.jackson.databind.annotation.JsonSerialize(as = ImmutablePageToken.class)
+@tools.jackson.databind.annotation.JsonDeserialize(as = ImmutablePageToken.class)
 public interface PageToken {
   // Serialization property names are intentionally short to reduce the size of the serialized
   // paging token.

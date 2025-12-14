@@ -38,6 +38,9 @@ dependencies {
   runtimeOnly("com.fasterxml.jackson.datatype:jackson-datatype-jdk8")
   runtimeOnly("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
+  compileOnly(platform(libs.jackson3.bom))
+  compileOnly("tools.jackson.core:jackson-databind")
+
   implementation(libs.caffeine)
   implementation(libs.guava)
   implementation(libs.slf4j.api)

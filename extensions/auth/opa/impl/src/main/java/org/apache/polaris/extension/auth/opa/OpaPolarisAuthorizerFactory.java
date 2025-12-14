@@ -18,8 +18,6 @@
  */
 package org.apache.polaris.extension.auth.opa;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -40,6 +38,8 @@ import org.apache.polaris.extension.auth.opa.token.StaticBearerTokenProvider;
 import org.apache.polaris.nosql.async.AsyncExec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Factory for creating OPA-based Polaris authorizer implementations. */
 @ApplicationScoped

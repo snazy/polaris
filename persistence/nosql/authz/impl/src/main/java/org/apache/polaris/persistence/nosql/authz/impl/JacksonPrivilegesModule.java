@@ -20,13 +20,13 @@ package org.apache.polaris.persistence.nosql.authz.impl;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import com.fasterxml.jackson.databind.module.SimpleModule;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.spi.CDI;
 import java.util.function.Function;
 import org.apache.polaris.persistence.nosql.authz.api.Acl;
 import org.apache.polaris.persistence.nosql.authz.api.PrivilegeSet;
 import org.apache.polaris.persistence.nosql.authz.api.Privileges;
+import tools.jackson.databind.module.SimpleModule;
 
 public class JacksonPrivilegesModule extends SimpleModule {
   public JacksonPrivilegesModule() {

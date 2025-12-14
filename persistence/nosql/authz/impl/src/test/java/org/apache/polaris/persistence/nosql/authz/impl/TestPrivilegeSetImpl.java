@@ -18,15 +18,11 @@
  */
 package org.apache.polaris.persistence.nosql.authz.impl;
 
-import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
-import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
 import static java.util.Collections.singleton;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+import static tools.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -42,6 +38,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 
 @ExtendWith(SoftAssertionsExtension.class)
 public class TestPrivilegeSetImpl {
@@ -71,7 +71,7 @@ public class TestPrivilegeSetImpl {
   @SuppressWarnings("RedundantCollectionOperation")
   @ParameterizedTest
   @MethodSource
-  public void singlePrivileges(Privilege.IndividualPrivilege privilege) throws Exception {
+  public void singlePrivileges(Privilege.IndividualPrivilege privilege) {
     var privilegeSet = privileges.newPrivilegesSetBuilder().addPrivilege(privilege).build();
     soft.assertThat(privilegeSet.isEmpty()).isFalse();
     soft.assertThat(privilegeSet.contains(privilege)).isTrue();
@@ -150,7 +150,7 @@ public class TestPrivilegeSetImpl {
 
   @ParameterizedTest
   @MethodSource
-  public void nameSerialization(PrivilegeSet privilegeSet) throws Exception {
+  public void nameSerialization(PrivilegeSet privilegeSet) {
     var json = mapper.writeValueAsString(privilegeSet);
 
     var deserialized = mapper.readValue(json, PrivilegeSet.class);
@@ -171,7 +171,7 @@ public class TestPrivilegeSetImpl {
   @ParameterizedTest
   @MethodSource
   public void compositeByNameSerialization(
-      Privilege composite, Set<Privilege> more, Set<Privilege> inJson) throws Exception {
+      Privilege composite, Set<Privilege> more, Set<Privilege> inJson) {
     var privilegeSet =
         privileges.newPrivilegesSetBuilder().addPrivilege(composite).addPrivileges(more).build();
 
@@ -189,7 +189,7 @@ public class TestPrivilegeSetImpl {
     var values = new ArrayList<String>();
     var arrayNode = (ArrayNode) jsonNode;
     for (var i = 0; i < arrayNode.size(); i++) {
-      values.add(arrayNode.get(i).asText());
+      values.add(arrayNode.get(i).asString());
     }
 
     soft.assertThat(values)

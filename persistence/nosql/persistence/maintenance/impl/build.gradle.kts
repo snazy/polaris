@@ -36,9 +36,9 @@ dependencies {
   implementation(libs.guava)
   implementation(libs.slf4j.api)
 
-  compileOnly(platform(libs.jackson.bom))
+  compileOnly(platform(libs.jackson3.bom))
   compileOnly("com.fasterxml.jackson.core:jackson-annotations")
-  compileOnly("com.fasterxml.jackson.core:jackson-databind")
+  compileOnly("tools.jackson.core:jackson-databind")
 
   compileOnly(libs.jakarta.annotation.api)
   compileOnly(libs.jakarta.validation.api)
@@ -56,17 +56,17 @@ dependencies {
   testFixturesCompileOnly(project(":polaris-immutables"))
   testFixturesAnnotationProcessor(project(":polaris-immutables", configuration = "processor"))
 
-  testFixturesCompileOnly(platform(libs.jackson.bom))
+  testFixturesCompileOnly(platform(libs.jackson3.bom))
   testFixturesCompileOnly("com.fasterxml.jackson.core:jackson-annotations")
-  testFixturesCompileOnly("com.fasterxml.jackson.core:jackson-databind")
+  testFixturesCompileOnly("tools.jackson.core:jackson-databind")
 
   testFixturesImplementation(libs.jakarta.annotation.api)
   testFixturesImplementation(libs.jakarta.validation.api)
   testFixturesCompileOnly(libs.jakarta.enterprise.cdi.api)
 
-  testCompileOnly(platform(libs.jackson.bom))
+  testCompileOnly(platform(libs.jackson3.bom))
   testCompileOnly("com.fasterxml.jackson.core:jackson-annotations")
-  testCompileOnly("com.fasterxml.jackson.core:jackson-databind")
+  testCompileOnly("tools.jackson.core:jackson-databind")
 
   testRuntimeOnly(libs.logback.classic)
 
