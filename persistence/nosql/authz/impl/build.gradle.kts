@@ -55,6 +55,9 @@ dependencies {
   testImplementation(libs.weld.junit5)
   testRuntimeOnly(libs.smallrye.jandex)
 
+  testImplementation(platform(libs.jackson3.bom))
+  testImplementation("tools.jackson.dataformat:jackson-dataformat-smile")
+
   testFixturesCompileOnly(platform(libs.jackson3.bom))
   testFixturesCompileOnly("tools.jackson.core:jackson-databind")
 }
