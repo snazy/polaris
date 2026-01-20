@@ -24,7 +24,7 @@ import static java.lang.String.format;
 import java.util.Map;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.io.FileIO;
-import org.projectnessie.objectstoragemock.ObjectStorageMock;
+import org.apache.polaris.test.objectstoragemock.ObjectStorageMock;
 
 public class TestFileOperationsImplWithS3 extends BaseTestFileOperationsImpl {
 

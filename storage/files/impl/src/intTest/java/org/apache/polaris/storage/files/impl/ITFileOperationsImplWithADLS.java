@@ -22,11 +22,11 @@ package org.apache.polaris.storage.files.impl;
 import java.util.Map;
 import org.apache.iceberg.azure.adlsv2.ADLSFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.test.azurite.Azurite;
+import org.apache.polaris.test.azurite.AzuriteAccess;
+import org.apache.polaris.test.azurite.AzuriteExtension;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.projectnessie.testing.azurite.Azurite;
-import org.projectnessie.testing.azurite.AzuriteAccess;
-import org.projectnessie.testing.azurite.AzuriteExtension;
 
 @ExtendWith(AzuriteExtension.class)
 public class ITFileOperationsImplWithADLS extends BaseITFileOperationsImpl {

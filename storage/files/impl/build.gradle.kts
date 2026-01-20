@@ -65,8 +65,7 @@ dependencies {
 
   testFixturesApi(project(":polaris-storage-files-api"))
 
-  testFixturesApi(platform(libs.nessie.bom))
-  testImplementation("org.projectnessie.nessie:nessie-object-storage-mock")
+  testImplementation(project(":polaris-object-storage-mock"))
 
   testFixturesApi("com.fasterxml.jackson.core:jackson-core")
   testFixturesApi("com.fasterxml.jackson.core:jackson-databind")
@@ -99,8 +98,8 @@ testing {
         dependencies {
           implementation(project(":polaris-storage-files-api"))
 
-          implementation("org.projectnessie.nessie:nessie-azurite-testcontainer")
-          implementation("org.projectnessie.nessie:nessie-gcs-testcontainer")
+          implementation(project(":polaris-azurite-testcontainer"))
+          implementation(project(":polaris-gcs-testcontainer"))
           implementation(project(":polaris-minio-testcontainer"))
 
           implementation("org.apache.iceberg:iceberg-aws")

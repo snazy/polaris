@@ -24,7 +24,7 @@ import static java.lang.String.format;
 import java.util.Map;
 import org.apache.iceberg.azure.adlsv2.ADLSFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.projectnessie.objectstoragemock.ObjectStorageMock;
+import org.apache.polaris.test.objectstoragemock.ObjectStorageMock;
 
 public class TestFileOperationsImplWithADLS extends BaseTestFileOperationsImpl {
 

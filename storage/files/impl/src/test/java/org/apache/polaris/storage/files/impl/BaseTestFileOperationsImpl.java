@@ -20,8 +20,8 @@
 package org.apache.polaris.storage.files.impl;
 
 import static java.lang.String.format;
+import static org.apache.polaris.test.objectstoragemock.HeapStorageBucket.newHeapStorageBucket;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.projectnessie.objectstoragemock.HeapStorageBucket.newHeapStorageBucket;
 
 import java.util.Map;
 import java.util.Optional;
@@ -35,15 +35,15 @@ import org.apache.polaris.storage.files.api.FileFilter;
 import org.apache.polaris.storage.files.api.FileSpec;
 import org.apache.polaris.storage.files.api.PurgeSpec;
 import org.apache.polaris.storage.files.api.PurgeStats;
+import org.apache.polaris.test.objectstoragemock.Bucket;
+import org.apache.polaris.test.objectstoragemock.InterceptingBucket;
+import org.apache.polaris.test.objectstoragemock.MockObject;
+import org.apache.polaris.test.objectstoragemock.ObjectStorageMock;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.projectnessie.objectstoragemock.Bucket;
-import org.projectnessie.objectstoragemock.InterceptingBucket;
-import org.projectnessie.objectstoragemock.MockObject;
-import org.projectnessie.objectstoragemock.ObjectStorageMock;
 
 public abstract class BaseTestFileOperationsImpl extends BaseFileOperationsImpl {
   @ParameterizedTest

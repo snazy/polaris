@@ -22,10 +22,10 @@ package org.apache.polaris.storage.files.impl;
 import java.util.Map;
 import org.apache.iceberg.gcp.gcs.GCSFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.test.gcs.Gcs;
+import org.apache.polaris.test.gcs.GcsAccess;
+import org.apache.polaris.test.gcs.GcsExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.projectnessie.testing.gcs.Gcs;
-import org.projectnessie.testing.gcs.GcsAccess;
-import org.projectnessie.testing.gcs.GcsExtension;
 
 @ExtendWith(GcsExtension.class)
 public class ITFileOperationsImplWithGCS extends BaseITFileOperationsImpl {

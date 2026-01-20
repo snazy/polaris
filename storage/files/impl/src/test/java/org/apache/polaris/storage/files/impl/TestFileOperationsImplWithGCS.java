@@ -24,8 +24,8 @@ import static java.lang.String.format;
 import java.util.Map;
 import org.apache.iceberg.gcp.gcs.GCSFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.test.objectstoragemock.ObjectStorageMock;
 import org.junit.jupiter.api.Disabled;
-import org.projectnessie.objectstoragemock.ObjectStorageMock;
 
 @Disabled(
     "Requires implementation of the /batch/storage/v1 endpoint in object-storage-mock. "
