@@ -18,7 +18,6 @@
 #
 
 name: CI/PR
-run-name: PR#${{ github.event.number }} ${{ github.event.pull_request.title }}
 
 on:
   pull_request:
