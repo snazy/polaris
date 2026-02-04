@@ -44,9 +44,9 @@ Tasks that are automated:
 * Source code artifacts have correct names matching the current release.
 * Built artifacts are [reproducible](#reproducible-builds).
 * Build passes.
-* `DISCLAIMER`, `LICENSE` and `NOTICE` files are included.
+* `LICENSE` and `NOTICE` files are included.
 * main and sources jar artifacts contain `META-INF/LICENSE` and `META-INF/NOTICE` files.
-* main distribution artifacts contain `DISCLAIMER`, `LICENSE` and `NOTICE` files in the top-level directory.
+* main distribution artifacts contain `LICENSE` and `NOTICE` files in the top-level directory.
 
 Tasks that need human attention:
 * Download links are valid. Check all links in the `[VOTE]` email for the release:
@@ -54,10 +54,10 @@ Tasks that need human attention:
     * Commit on the GitHub website
     * SVN repository with the source tarball and binary release artifacts
     * SVN repository with the Helm chart
-    * Link to the KEYS file (_MUST_ be equal to `https://downloads.apache.org/incubator/polaris/KEYS`)
+    * Link to the KEYS file (_MUST_ be equal to `https://downloads.apache.org/polaris/KEYS`)
     * Maven staging repository
     * A link to this page is included.
-* The contents of the `DISCLAIMER`, `LICENSE` and `NOTICE` files are correct for the repository.
+* The contents of the `LICENSE` and `NOTICE` files are correct for the repository.
 * Contents of jar artifacts `META-INF/LICENSE` and `META-INF/NOTICE` files are correct.
 * All files have license headers, if necessary.
   This is (mostly) verified using the "rat" tool during builds/CI.
@@ -164,8 +164,8 @@ Git sha:           354a5ef6b337bf690b7a12fefe2c984e2139b029
 Version:           1.3.0-incubating
 RC:                0
 Maven repo URL:    https://repository.apache.org/content/repositories/orgapachepolaris-1033/
-Main dist URL:     https://dist.apache.org/repos/dist/dev/incubator/polaris/1.3.0-incubating
-Helm chart URL:    https://dist.apache.org/repos/dist/dev/incubator/polaris/helm-chart/1.3.0-incubating
+Main dist URL:     https://dist.apache.org/repos/dist/dev/polaris/1.3.0-incubating
+Helm chart URL:    https://dist.apache.org/repos/dist/dev/polaris/helm-chart/1.3.0-incubating
 Verify directory:  /tmp/polaris-release-verify-2025-10-23-14-22-31-HPmmiybzk
 
 A verbose log containing the identified issues will be available here:
