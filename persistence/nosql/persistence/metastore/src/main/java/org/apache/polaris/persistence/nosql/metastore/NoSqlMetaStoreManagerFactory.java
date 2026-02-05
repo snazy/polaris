@@ -32,6 +32,9 @@ import static org.apache.polaris.persistence.nosql.realms.api.RealmDefinition.Re
 import io.smallrye.common.annotation.Identifier;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.enterprise.inject.Instance;
+import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import java.time.Clock;
 import java.util.HashMap;
@@ -93,6 +96,15 @@ class NoSqlMetaStoreManagerFactory implements MetaStoreManagerFactory {
     try (var realms = realmManagement.list()) {
       realms.forEach(realmDefinition -> LOGGER.info("Realm registered: {}", realmDefinition));
     }
+  }
+
+  @Produces
+  @RequestScoped
+  // Need to use Instance<> because `RealmContext` is not available in all situations.
+  NoSqlCatalogs nosqlCatalogs(Instance<RealmContext> realmContext) {
+    var persistence = initializedRealmPersistence(realmContext.get().getRealmIdentifier());
+    var metaStore = newPersistenceMetaStore(persistence);
+    return new NoSqlCatalogsImpl(persistence, metaStore);
   }
 
   @Override

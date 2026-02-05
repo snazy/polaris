@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -79,6 +80,7 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.persistence.BaseMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
+import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
@@ -184,6 +186,10 @@ class NoSqlMetaStore extends NonFunctionalBasePersistence {
 
   long generateNewId() {
     return persistence.generateId();
+  }
+
+  MemoizedIndexedAccess memoizedIndexedAccess() {
+    return memoizedIndexedAccess;
   }
 
   void initializeCatalogsIfNecessary() {
@@ -699,6 +705,25 @@ class NoSqlMetaStore extends NonFunctionalBasePersistence {
             });
   }
 
+  List<PolarisBaseEntity> lookupEntities(long catalogId, int entityTypeCode, long[] entityIds) {
+    if (entityTypeCode == PolarisEntityType.ROOT.getCode()) {
+      throw new IllegalArgumentException("Cannot lookup multiple root entities by name");
+    }
+    if (entityTypeCode == PolarisEntityType.NULL_TYPE.getCode()) {
+      return null;
+    }
+    if (entityTypeCode == PolarisEntityType.CATALOG.getCode()) {
+      catalogId = 0L;
+    }
+
+    var access = memoizedIndexedAccess.indexedAccess(catalogId, entityTypeCode);
+    return Arrays.stream(entityIds)
+        .boxed()
+        .flatMap(entityId -> access.byId(entityId).stream())
+        .map(objBase -> mapToEntity(objBase, access.catalogStableId()))
+        .toList();
+  }
+
   @Nullable
   PolarisBaseEntity lookupEntity(long catalogId, long entityId, int entityTypeCode) {
     if (entityTypeCode == PolarisEntityType.ROOT.getCode()) {
@@ -728,6 +753,32 @@ class NoSqlMetaStore extends NonFunctionalBasePersistence {
         .flatMap(objBase -> filterIsEntityType(objBase, entityTypeCode))
         .map(objBase -> mapToEntity(objBase, access.catalogStableId()))
         .orElse(null);
+  }
+
+  List<PolarisBaseEntity> lookupEntitiesByName(
+      long catalogId, long parentId, int entityTypeCode, Set<String> names) {
+    if (entityTypeCode == PolarisEntityType.ROOT.getCode()) {
+      throw new IllegalArgumentException("Cannot lookup multiple root entities by name");
+    }
+    if (entityTypeCode == PolarisEntityType.NULL_TYPE.getCode()) {
+      return List.of();
+    }
+    if (entityTypeCode == PolarisEntityType.CATALOG.getCode()) {
+      catalogId = 0L;
+    }
+
+    var rootAccess = parentId == catalogId;
+    var access = memoizedIndexedAccess.indexedAccess(catalogId, entityTypeCode);
+
+    return names.stream()
+        .flatMap(
+            n ->
+                rootAccess
+                    ? access.byNameOnRoot(n).stream()
+                    : access.byParentIdAndName(parentId, n).stream())
+        .flatMap(objBase -> filterIsEntityType(objBase, entityTypeCode).stream())
+        .map(objBase -> mapToEntity(objBase, access.catalogStableId()))
+        .toList();
   }
 
   PolarisBaseEntity lookupEntityByName(
@@ -1114,6 +1165,50 @@ class NoSqlMetaStore extends NonFunctionalBasePersistence {
   @FunctionalInterface
   interface AclEntryHandler {
     void handle(SecurableAndGrantee securableAndGrantee, PrivilegeSet granted);
+  }
+
+  List<ResolvedPolarisEntity> resolvedPolarisEntities(
+      long catalogId, List<? extends PolarisBaseEntity> entities) {
+    if (entities.isEmpty()) {
+      return List.of();
+    }
+    checkArgument(
+        entities.stream()
+            .mapToLong(PolarisBaseEntity::getCatalogId)
+            .noneMatch(c -> c != 0L && c != catalogId),
+        "All entities must belong to the same catalog");
+
+    return memoizedIndexedAccess
+        .grantsIndex()
+        .map(
+            entries ->
+                entities.stream()
+                    .map(
+                        e -> {
+                          var aclName = GrantTriplet.forEntity(e).toRoleName();
+                          var grantRecords = collectGrantRecords(catalogId, aclName, entries);
+                          return grantRecordsToResolved(grantRecords, e);
+                        })
+                    .toList())
+        .orElseGet(
+            () ->
+                entities.stream()
+                    .map(e -> new ResolvedPolarisEntity(null, List.of(), List.of()))
+                    .toList());
+  }
+
+  static ResolvedPolarisEntity grantRecordsToResolved(
+      List<PolarisGrantRecord> grantRecords, PolarisBaseEntity entity) {
+    var grantRecordsAsGrantee =
+        grantRecords.stream()
+            .filter(record -> record.getGranteeId() == entity.getId())
+            .collect(Collectors.toList());
+    var grantRecordsAsSecurable =
+        grantRecords.stream()
+            .filter(record -> record.getSecurableId() == entity.getId())
+            .collect(Collectors.toList());
+    var polarisEntity = entity instanceof PolarisEntity pe ? pe : new PolarisEntity(entity);
+    return new ResolvedPolarisEntity(polarisEntity, grantRecordsAsGrantee, grantRecordsAsSecurable);
   }
 
   List<PolarisGrantRecord> allGrantRecords(PolarisBaseEntity entity) {
