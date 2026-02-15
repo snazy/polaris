@@ -30,8 +30,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.FileIO;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.TaskEntity;
-import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
-import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
@@ -56,13 +54,9 @@ public class TaskFileIOSupplier {
     String location = properties.get(PolarisTaskConstants.STORAGE_LOCATION);
     Set<String> locations = Set.of(location);
     Set<PolarisStorageActions> storageActions = Set.of(PolarisStorageActions.ALL);
-    ResolvedPolarisEntity resolvedTaskEntity =
-        new ResolvedPolarisEntity(task, List.of(), List.of());
-    PolarisResolvedPathWrapper resolvedPath =
-        new PolarisResolvedPathWrapper(List.of(resolvedTaskEntity));
     StorageAccessConfig storageAccessConfig =
         accessConfigProvider.getStorageAccessConfig(
-            identifier, locations, storageActions, Optional.empty(), resolvedPath);
+            identifier, locations, storageActions, Optional.empty(), List.of(task));
 
     String ioImpl =
         properties.getOrDefault(
