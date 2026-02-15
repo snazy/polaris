@@ -402,7 +402,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
     Optional<PolarisEntity> storageInfoEntity =
         FileIOUtil.findStorageInfoFromHierarchy(
-            CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier));
+            CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier)
+                .getRawFullPath());
 
     // The storageProperties we stash away in the Task should be the superset of the
     // internalProperties of the StorageInfoEntity to be able to use its StorageIntegration
@@ -2066,7 +2067,11 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       Set<PolarisStorageActions> storageActions) {
     StorageAccessConfig storageAccessConfig =
         storageAccessConfigProvider.getStorageAccessConfig(
-            identifier, readLocations, storageActions, Optional.empty(), resolvedStorageEntity);
+            identifier,
+            readLocations,
+            storageActions,
+            Optional.empty(),
+            resolvedStorageEntity.getRawFullPath());
     // Reload fileIO based on table specific context
     FileIO fileIO = fileIOFactory.loadFileIO(storageAccessConfig, ioImplClassName, tableProperties);
     // ensure the new fileIO is closed when the catalog is closed
@@ -2399,7 +2404,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
         resolvedStorageEntity =
             resolvedEntityView.getResolvedPath(ResolvedPathKey.ofNamespace(nsLevel));
         if (resolvedStorageEntity != null) {
-          storageInfoEntity = FileIOUtil.findStorageInfoFromHierarchy(resolvedStorageEntity);
+          storageInfoEntity =
+              FileIOUtil.findStorageInfoFromHierarchy(resolvedStorageEntity.getRawFullPath());
           break;
         }
       }
