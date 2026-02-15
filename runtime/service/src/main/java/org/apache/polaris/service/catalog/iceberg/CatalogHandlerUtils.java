@@ -18,9 +18,30 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
+import static java.lang.String.format;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.METADATA_COMPRESSION;
+import static org.apache.iceberg.TableProperties.METADATA_COMPRESSION_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DATA_LOCATION;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
+import static org.apache.polaris.core.config.FeatureConfiguration.ALLOW_EXTERNAL_METADATA_FILE_LOCATION;
+import static org.apache.polaris.core.config.FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.CURRENT_SCHEMA_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.CURRENT_SNAPSHOT_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.DEFAULT_SORT_ORDER_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.DEFAULT_SPEC_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.FORMAT_VERSION;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.LAST_COLUMN_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.LAST_PARTITION_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.LAST_SEQUENCE_NUMBER;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.LAST_UPDATED_MILLIS;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.LOCATION;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.NEXT_ROW_ID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.TABLE_UUID;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.USER_SPECIFIED_WRITE_DATA_LOCATION_KEY;
+import static org.apache.polaris.core.entity.table.IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
@@ -33,12 +54,15 @@ import jakarta.inject.Inject;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
@@ -52,6 +76,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateRequirement;
@@ -60,6 +85,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -76,6 +102,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -86,10 +113,12 @@ import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
+import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
+import org.apache.polaris.core.storage.StorageLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,6 +135,8 @@ public class CatalogHandlerUtils {
   private static final String CONFLICT_RESOLUTION_ACTION =
       "polaris.internal.conflict-resolution.by-operation-type.replace";
   private static final Field LAST_SEQUENCE_NUMBER_FIELD;
+
+  public static final String METADATA_FOLDER_NAME = "metadata";
 
   static {
     try {
@@ -131,6 +162,121 @@ public class CatalogHandlerUtils {
   public CatalogHandlerUtils(int maxCommitRetries, boolean rollbackCompactionEnabled) {
     this.maxCommitRetries = maxCommitRetries;
     this.rollbackCompactionEnabled = rollbackCompactionEnabled;
+  }
+
+  public static String newViewMetadataFilePath(ViewMetadata metadata, int newVersion) {
+    String codecName =
+        metadata
+            .properties()
+            .getOrDefault(
+                ViewProperties.METADATA_COMPRESSION, ViewProperties.METADATA_COMPRESSION_DEFAULT);
+    String fileExtension = TableMetadataParser.getFileExtension(codecName);
+    return viewMetadataFileLocation(
+        metadata, format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+  }
+
+  private static String viewMetadataFileLocation(ViewMetadata metadata, String filename) {
+    String metadataLocation = metadata.properties().get(ViewProperties.WRITE_METADATA_LOCATION);
+    if (metadataLocation != null) {
+      return format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
+    } else {
+      return String.format(
+          "%s/%s/%s",
+          LocationUtil.stripTrailingSlash(metadata.location()), METADATA_FOLDER_NAME, filename);
+    }
+  }
+
+  public static String tableMetadataFileLocation(TableMetadata metadata, String filename) {
+    String metadataLocation = metadata.properties().get(WRITE_METADATA_LOCATION);
+
+    if (metadataLocation != null) {
+      return format("%s/%s", LocationUtil.stripTrailingSlash(metadataLocation), filename);
+    } else {
+      return String.format("%s/%s/%s", metadata.location(), METADATA_FOLDER_NAME, filename);
+    }
+  }
+
+  public static String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
+    String codecName = meta.property(METADATA_COMPRESSION, METADATA_COMPRESSION_DEFAULT);
+    String fileExtension = TableMetadataParser.getFileExtension(codecName);
+    return tableMetadataFileLocation(
+        meta, format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+  }
+
+  /**
+   * Parse the version from table/view metadata file name.
+   *
+   * @param metadataLocation table/view metadata file location
+   * @return version of the table/view metadata file in success case and -1 if the version is not
+   *     parsable (as a sign that the metadata is not part of this catalog)
+   */
+  public static int parseVersionFromMetadataLocation(String metadataLocation) {
+    int versionStart = metadataLocation.lastIndexOf('/') + 1; // if '/' isn't found, this will be 0
+    int versionEnd = metadataLocation.indexOf('-', versionStart);
+    if (versionEnd < 0) {
+      // found filesystem object's metadata
+      return -1;
+    }
+
+    try {
+      return Integer.parseInt(metadataLocation.substring(versionStart, versionEnd));
+    } catch (NumberFormatException e) {
+      LOGGER.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
+      return -1;
+    }
+  }
+
+  public static Map<String, String> buildTableMetadataPropertiesMap(TableMetadata metadata) {
+    Map<String, String> storedProperties = new HashMap<>();
+    // Location specific properties
+    storedProperties.put(LOCATION, metadata.location());
+    if (metadata.properties().containsKey(WRITE_DATA_LOCATION)) {
+      storedProperties.put(
+          USER_SPECIFIED_WRITE_DATA_LOCATION_KEY, metadata.properties().get(WRITE_DATA_LOCATION));
+    }
+    if (metadata.properties().containsKey(WRITE_METADATA_LOCATION)) {
+      storedProperties.put(
+          USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+          metadata.properties().get(WRITE_METADATA_LOCATION));
+    }
+    storedProperties.put(FORMAT_VERSION, String.valueOf(metadata.formatVersion()));
+    storedProperties.put(TABLE_UUID, metadata.uuid());
+    storedProperties.put(CURRENT_SCHEMA_ID, String.valueOf(metadata.currentSchemaId()));
+    if (metadata.currentSnapshot() != null) {
+      storedProperties.put(
+          CURRENT_SNAPSHOT_ID, String.valueOf(metadata.currentSnapshot().snapshotId()));
+    }
+    storedProperties.put(LAST_COLUMN_ID, String.valueOf(metadata.lastColumnId()));
+    storedProperties.put(NEXT_ROW_ID, String.valueOf(metadata.nextRowId()));
+    storedProperties.put(LAST_SEQUENCE_NUMBER, String.valueOf(metadata.lastSequenceNumber()));
+    storedProperties.put(LAST_UPDATED_MILLIS, String.valueOf(metadata.lastUpdatedMillis()));
+    if (metadata.sortOrder() != null) {
+      storedProperties.put(DEFAULT_SORT_ORDER_ID, String.valueOf(metadata.defaultSortOrderId()));
+    }
+    if (metadata.spec() != null) {
+      storedProperties.put(DEFAULT_SPEC_ID, String.valueOf(metadata.defaultSpecId()));
+      storedProperties.put(LAST_PARTITION_ID, String.valueOf(metadata.lastAssignedPartitionId()));
+    }
+    return storedProperties;
+  }
+
+  public static void validateMetadataFileInTableDir(
+      RealmConfig realmConfig, TableIdentifier identifier, TableMetadata metadata) {
+    var allowEscape = realmConfig.getConfig(ALLOW_EXTERNAL_TABLE_LOCATION);
+    if (!allowEscape && !realmConfig.getConfig(ALLOW_EXTERNAL_METADATA_FILE_LOCATION)) {
+      LOGGER.debug(
+          "Validating base location {} for table {} in metadata file {}",
+          metadata.location(),
+          identifier,
+          metadata.metadataFileLocation());
+      var metadataFileLocation = StorageLocation.of(metadata.metadataFileLocation());
+      var baseLocation = StorageLocation.of(metadata.location());
+      if (!metadataFileLocation.isChildOf(baseLocation)) {
+        throw new BadRequestException(
+            "Metadata location %s is not allowed outside of table location %s",
+            metadata.metadataFileLocation(), metadata.location());
+      }
+    }
   }
 
   /**
