@@ -871,7 +871,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
                   tableLocations,
                   actions,
                   refreshCredentialsEndpoint,
-                  resolvedStoragePath);
+                  resolvedStoragePath.getRawFullPath());
       Map<String, String> credentialConfig = storageAccessConfig.credentials();
       if (delegationModes.contains(VENDED_CREDENTIALS)) {
         if (!credentialConfig.isEmpty()) {

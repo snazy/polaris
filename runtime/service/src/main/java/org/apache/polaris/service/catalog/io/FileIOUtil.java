@@ -18,12 +18,12 @@
  */
 package org.apache.polaris.service.catalog.io;
 
+import java.util.List;
 import java.util.Optional;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
-import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 
-public class FileIOUtil {
+public final class FileIOUtil {
 
   private FileIOUtil() {}
 
@@ -35,18 +35,16 @@ public class FileIOUtil {
    * properties, identified using a key from {@link
    * PolarisEntityConstants#getStorageConfigInfoPropertyName()}.
    *
-   * @param resolvedStorageEntity the resolved entity wrapper containing the hierarchical path
+   * @param resolvedStorageEntityPath the resolved entity hierarchical path
    * @return an {@link Optional} containing the entity with storage config, or empty if not found
    */
   public static Optional<PolarisEntity> findStorageInfoFromHierarchy(
-      PolarisResolvedPathWrapper resolvedStorageEntity) {
-    Optional<PolarisEntity> storageInfoEntity =
-        resolvedStorageEntity.getRawFullPath().reversed().stream()
-            .filter(
-                e ->
-                    e.getInternalPropertiesAsMap()
-                        .containsKey(PolarisEntityConstants.getStorageConfigInfoPropertyName()))
-            .findFirst();
-    return storageInfoEntity;
+      List<PolarisEntity> resolvedStorageEntityPath) {
+    return resolvedStorageEntityPath.reversed().stream()
+        .filter(
+            e ->
+                e.getInternalPropertiesAsMap()
+                    .containsKey(PolarisEntityConstants.getStorageConfigInfoPropertyName()))
+        .findFirst();
   }
 }
