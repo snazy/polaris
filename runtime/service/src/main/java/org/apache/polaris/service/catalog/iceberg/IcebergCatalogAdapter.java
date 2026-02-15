@@ -19,6 +19,7 @@
 package org.apache.polaris.service.catalog.iceberg;
 
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
 import static org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation.validateIcebergProperties;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -57,7 +58,7 @@ import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
+import org.apache.polaris.service.catalog.common.CatalogUtils;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.http.IcebergHttpUtil;
 import org.apache.polaris.service.http.IfNoneMatch;
@@ -73,7 +74,7 @@ import org.slf4j.LoggerFactory;
  */
 @RequestScoped
 public class IcebergCatalogAdapter
-    implements IcebergRestCatalogApiService, IcebergRestConfigurationApiService, CatalogAdapter {
+    implements IcebergRestCatalogApiService, IcebergRestConfigurationApiService {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(IcebergCatalogAdapter.class);
 
@@ -123,7 +124,7 @@ public class IcebergCatalogAdapter
 
   @VisibleForTesting
   IcebergCatalogHandler newHandler(SecurityContext securityContext, String catalogName) {
-    PolarisPrincipal principal = validatePrincipal(securityContext);
+    PolarisPrincipal principal = CatalogUtils.validatePrincipal(securityContext);
     return handlerFactory.createHandler(catalogName, principal);
   }
 
@@ -148,7 +149,8 @@ public class IcebergCatalogAdapter
       String parent,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Optional<Namespace> namespaceOptional = Optional.ofNullable(parent).map(this::decodeNamespace);
+    Optional<Namespace> namespaceOptional =
+        Optional.ofNullable(parent).map(CatalogUtils::decodeNamespace);
     return withCatalog(
         securityContext,
         prefix,

@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.service.catalog.policy;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
+
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -32,7 +34,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogPolicyApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
+import org.apache.polaris.service.catalog.common.CatalogUtils;
 import org.apache.polaris.service.types.AttachPolicyRequest;
 import org.apache.polaris.service.types.CreatePolicyRequest;
 import org.apache.polaris.service.types.DetachPolicyRequest;
@@ -43,7 +45,7 @@ import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.service.types.UpdatePolicyRequest;
 
 @RequestScoped
-public class PolicyCatalogAdapter implements PolarisCatalogPolicyApiService, CatalogAdapter {
+public class PolicyCatalogAdapter implements PolarisCatalogPolicyApiService {
 
   private final RealmContext realmContext;
   private final RealmConfig realmConfig;
@@ -64,7 +66,7 @@ public class PolicyCatalogAdapter implements PolarisCatalogPolicyApiService, Cat
   private PolicyCatalogHandler newHandler(SecurityContext securityContext, String prefix) {
     FeatureConfiguration.enforceFeatureEnabledOrThrow(
         realmConfig, FeatureConfiguration.ENABLE_POLICY_STORE);
-    PolarisPrincipal principal = validatePrincipal(securityContext);
+    PolarisPrincipal principal = CatalogUtils.validatePrincipal(securityContext);
     String catalogName = prefixParser.prefixToCatalogName(prefix);
     return handlerFactory.createHandler(catalogName, principal);
   }

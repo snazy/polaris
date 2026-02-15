@@ -18,13 +18,14 @@
  */
 package org.apache.polaris.service.catalog.generic;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.noSuchNamespaceException;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.notFoundExceptionForTableLikeEntity;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.polaris.core.catalog.GenericTableCatalog;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.context.CallContext;
@@ -148,7 +149,8 @@ public class PolarisGenericTableCatalog implements GenericTableCatalog {
         GenericTableEntity.of(
             resolvedEntities == null ? null : resolvedEntities.getRawLeafEntity());
     if (null == entity) {
-      throw new NoSuchTableException("Generic table does not exist: %s", tableIdentifier);
+      throw notFoundExceptionForTableLikeEntity(
+          tableIdentifier, PolarisEntitySubType.GENERIC_TABLE);
     } else {
       return entity;
     }
@@ -161,7 +163,8 @@ public class PolarisGenericTableCatalog implements GenericTableCatalog {
             tableIdentifier, PolarisEntityType.TABLE_LIKE, PolarisEntitySubType.GENERIC_TABLE);
 
     if (resolvedEntities == null) {
-      throw new NoSuchTableException("Generic table does not exist: %s", tableIdentifier);
+      throw notFoundExceptionForTableLikeEntity(
+          tableIdentifier, PolarisEntitySubType.GENERIC_TABLE);
     }
 
     List<PolarisEntity> catalogPath = resolvedEntities.getRawParentPath();
@@ -182,7 +185,7 @@ public class PolarisGenericTableCatalog implements GenericTableCatalog {
   public List<TableIdentifier> listGenericTables(Namespace namespace) {
     PolarisResolvedPathWrapper resolvedEntities = resolvedEntityView.getResolvedPath(namespace);
     if (resolvedEntities == null) {
-      throw new NoSuchNamespaceException("Namespace '%s' does not exist", namespace);
+      throw noSuchNamespaceException(namespace);
     }
 
     List<PolarisEntity> catalogPath = resolvedEntities.getRawFullPath();

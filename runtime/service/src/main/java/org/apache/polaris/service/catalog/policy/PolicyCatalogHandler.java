@@ -18,6 +18,9 @@
  */
 package org.apache.polaris.service.catalog.policy;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.determinePolicyMappingOperation;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.noSuchNamespaceException;
+
 import com.google.common.base.Strings;
 import jakarta.annotation.Nullable;
 import java.util.Arrays;
@@ -25,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
@@ -262,30 +264,6 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
     initializeCatalog();
   }
 
-  private PolarisAuthorizableOperation determinePolicyMappingOperation(
-      PolicyAttachmentTarget target, PolarisResolvedPathWrapper targetWrapper, boolean isAttach) {
-    return switch (targetWrapper.getRawLeafEntity().getType()) {
-      case CATALOG ->
-          isAttach
-              ? PolarisAuthorizableOperation.ATTACH_POLICY_TO_CATALOG
-              : PolarisAuthorizableOperation.DETACH_POLICY_FROM_CATALOG;
-      case NAMESPACE ->
-          isAttach
-              ? PolarisAuthorizableOperation.ATTACH_POLICY_TO_NAMESPACE
-              : PolarisAuthorizableOperation.DETACH_POLICY_FROM_NAMESPACE;
-      case TABLE_LIKE -> {
-        PolarisEntitySubType subType = targetWrapper.getRawLeafEntity().getSubType();
-        if (subType == PolarisEntitySubType.ICEBERG_TABLE) {
-          yield isAttach
-              ? PolarisAuthorizableOperation.ATTACH_POLICY_TO_TABLE
-              : PolarisAuthorizableOperation.DETACH_POLICY_FROM_TABLE;
-        }
-        throw new IllegalArgumentException("Unsupported table-like subtype: " + subType);
-      }
-      default -> throw new IllegalArgumentException("Unsupported target type: " + target.getType());
-    };
-  }
-
   private void throwNotFoundExceptionIfFailToResolve(
       ResolverStatus status, PolicyIdentifier identifier) {
     if ((status.getStatus() == ResolverStatus.StatusEnum.PATH_COULD_NOT_BE_FULLY_RESOLVED)) {
@@ -296,8 +274,7 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
                 PolarisCatalogHelpers.listToTableIdentifier(
                     status.getFailedToResolvePath().getEntityNames()));
         case PolarisEntityType.NAMESPACE ->
-            throw new NoSuchNamespaceException(
-                "Namespace does not exist: %s",
+            throw noSuchNamespaceException(
                 Namespace.of(
                     status.getFailedToResolvePath().getEntityNames().toArray(new String[0])));
         case PolarisEntityType.POLICY ->

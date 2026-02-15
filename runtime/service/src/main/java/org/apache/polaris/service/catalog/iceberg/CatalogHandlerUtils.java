@@ -21,17 +21,16 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.noSuchNamespaceException;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.notFoundExceptionForTableLikeEntity;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import jakarta.annotation.Nullable;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.lang.reflect.Field;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -48,11 +47,9 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -63,11 +60,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -96,6 +89,7 @@ import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -222,7 +216,7 @@ public class CatalogHandlerUtils {
 
   public void namespaceExists(SupportsNamespaces catalog, Namespace namespace) {
     if (!catalog.namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      throw noSuchNamespaceException(namespace);
     }
   }
 
@@ -237,7 +231,7 @@ public class CatalogHandlerUtils {
   public void dropNamespace(SupportsNamespaces catalog, Namespace namespace) {
     boolean dropped = catalog.dropNamespace(namespace);
     if (!dropped) {
-      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+      throw noSuchNamespaceException(namespace);
     }
   }
 
@@ -281,45 +275,6 @@ public class CatalogHandlerUtils {
     return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
-  public LoadTableResponse stageTableCreate(
-      Catalog catalog, Namespace namespace, CreateTableRequest request) {
-    request.validate();
-
-    TableIdentifier ident = TableIdentifier.of(namespace, request.name());
-    if (catalog.tableExists(ident)) {
-      throw new AlreadyExistsException("Table already exists: %s", ident);
-    }
-
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put("created-at", OffsetDateTime.now(ZoneOffset.UTC).toString());
-    properties.putAll(request.properties());
-
-    String location;
-    if (request.location() != null) {
-      location = request.location();
-    } else {
-      location =
-          catalog
-              .buildTable(ident, request.schema())
-              .withPartitionSpec(request.spec())
-              .withSortOrder(request.writeOrder())
-              .withProperties(properties)
-              .createTransaction()
-              .table()
-              .location();
-    }
-
-    TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            request.schema(),
-            request.spec() != null ? request.spec() : PartitionSpec.unpartitioned(),
-            request.writeOrder() != null ? request.writeOrder() : SortOrder.unsorted(),
-            location,
-            properties);
-
-    return LoadTableResponse.builder().withTableMetadata(metadata).build();
-  }
-
   public LoadTableResponse createTable(
       Catalog catalog, Namespace namespace, CreateTableRequest request) {
     request.validate();
@@ -361,21 +316,21 @@ public class CatalogHandlerUtils {
   public void dropTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, false);
     if (!dropped) {
-      throw new NoSuchTableException("Table does not exist: %s", ident);
+      throw notFoundExceptionForTableLikeEntity(ident, PolarisEntitySubType.ICEBERG_TABLE);
     }
   }
 
   public void purgeTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, true);
     if (!dropped) {
-      throw new NoSuchTableException("Table does not exist: %s", ident);
+      throw notFoundExceptionForTableLikeEntity(ident, PolarisEntitySubType.ICEBERG_TABLE);
     }
   }
 
   public void tableExists(Catalog catalog, TableIdentifier ident) {
     boolean exists = catalog.tableExists(ident);
     if (!exists) {
-      throw new NoSuchTableException("Table does not exist: %s", ident);
+      throw notFoundExceptionForTableLikeEntity(ident, PolarisEntitySubType.ICEBERG_TABLE);
     }
   }
 
@@ -388,7 +343,7 @@ public class CatalogHandlerUtils {
           .build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
-      throw new NoSuchTableException("Table does not exist: %s", ident.toString());
+      throw notFoundExceptionForTableLikeEntity(ident, PolarisEntitySubType.ICEBERG_TABLE);
     }
 
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
@@ -397,7 +352,7 @@ public class CatalogHandlerUtils {
   public LoadTableResponse updateTable(
       Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     TableMetadata finalMetadata;
-    if (isCreate(request)) {
+    if (IcebergCatalogHandler.isCreate(request)) {
       // this is a hacky way to get TableOperations for an uncommitted table
       Transaction transaction =
           catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
@@ -423,23 +378,6 @@ public class CatalogHandlerUtils {
 
   public void renameTable(Catalog catalog, RenameTableRequest request) {
     catalog.renameTable(request.source(), request.destination());
-  }
-
-  private boolean isCreate(UpdateTableRequest request) {
-    boolean isCreate =
-        request.requirements().stream()
-            .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
-
-    if (isCreate) {
-      List<UpdateRequirement> invalidRequirements =
-          request.requirements().stream()
-              .filter(req -> !(req instanceof UpdateRequirement.AssertTableDoesNotExist))
-              .collect(Collectors.toList());
-      Preconditions.checkArgument(
-          invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);
-    }
-
-    return isCreate;
   }
 
   private TableMetadata create(TableOperations ops, UpdateTableRequest request) {
@@ -779,7 +717,7 @@ public class CatalogHandlerUtils {
 
   public void viewExists(ViewCatalog catalog, TableIdentifier viewIdentifier) {
     if (!catalog.viewExists(viewIdentifier)) {
-      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+      throw notFoundExceptionForTableLikeEntity(viewIdentifier, PolarisEntitySubType.ICEBERG_VIEW);
     }
   }
 
@@ -806,7 +744,7 @@ public class CatalogHandlerUtils {
   public void dropView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
     boolean dropped = catalog.dropView(viewIdentifier);
     if (!dropped) {
-      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+      throw notFoundExceptionForTableLikeEntity(viewIdentifier, PolarisEntitySubType.ICEBERG_VIEW);
     }
   }
 

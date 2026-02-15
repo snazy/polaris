@@ -20,6 +20,8 @@ package org.apache.polaris.service.catalog.policy;
 
 import static org.apache.polaris.core.persistence.dao.entity.BaseResult.ReturnStatus.POLICY_HAS_MAPPINGS;
 import static org.apache.polaris.core.persistence.dao.entity.BaseResult.ReturnStatus.POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.noSuchNamespaceException;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.notFoundExceptionForTableLikeEntity;
 import static org.apache.polaris.service.types.PolicyAttachmentTarget.TypeEnum.CATALOG;
 
 import com.google.common.base.Strings;
@@ -39,8 +41,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -456,7 +456,7 @@ public class PolicyCatalog {
       // namespace
       var resolvedTargetEntity = resolvedEntityView.getResolvedPath(namespace);
       if (resolvedTargetEntity == null) {
-        throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+        throw noSuchNamespaceException(namespace);
       }
       return resolvedTargetEntity.getRawFullPath();
     } else {
@@ -467,7 +467,8 @@ public class PolicyCatalog {
           resolvedEntityView.getResolvedPath(
               tableIdentifier, PolarisEntityType.TABLE_LIKE, PolarisEntitySubType.ICEBERG_TABLE);
       if (resolvedTableEntity == null) {
-        throw new NoSuchTableException("Iceberg Table does not exist: %s", tableIdentifier);
+        throw notFoundExceptionForTableLikeEntity(
+            tableIdentifier, PolarisEntitySubType.ICEBERG_TABLE);
       }
       return resolvedTableEntity.getRawFullPath();
     }
@@ -501,7 +502,7 @@ public class PolicyCatalog {
         var namespace = Namespace.of(target.getPath().toArray(new String[0]));
         var resolvedTargetEntity = resolvedEntityView.getResolvedPath(namespace);
         if (resolvedTargetEntity == null) {
-          throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+          throw noSuchNamespaceException(namespace);
         }
         yield resolvedTargetEntity;
       }
@@ -512,7 +513,8 @@ public class PolicyCatalog {
             resolvedEntityView.getResolvedPath(
                 tableIdentifier, PolarisEntityType.TABLE_LIKE, PolarisEntitySubType.ICEBERG_TABLE);
         if (resolvedTableEntity == null) {
-          throw new NoSuchTableException("Iceberg Table does not exist: %s", tableIdentifier);
+          throw notFoundExceptionForTableLikeEntity(
+              tableIdentifier, PolarisEntitySubType.ICEBERG_TABLE);
         }
         yield resolvedTableEntity;
       }

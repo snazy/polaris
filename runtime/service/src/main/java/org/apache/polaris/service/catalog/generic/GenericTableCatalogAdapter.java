@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.service.catalog.generic;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
+
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -30,15 +32,14 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogGenericTableApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
+import org.apache.polaris.service.catalog.common.CatalogUtils;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.types.CreateGenericTableRequest;
 import org.apache.polaris.service.types.ListGenericTablesResponse;
 import org.apache.polaris.service.types.LoadGenericTableResponse;
 
 @RequestScoped
-public class GenericTableCatalogAdapter
-    implements PolarisCatalogGenericTableApiService, CatalogAdapter {
+public class GenericTableCatalogAdapter implements PolarisCatalogGenericTableApiService {
 
   private final RealmContext realmContext;
   private final RealmConfig realmConfig;
@@ -62,7 +63,7 @@ public class GenericTableCatalogAdapter
   private GenericTableCatalogHandler newHandler(SecurityContext securityContext, String prefix) {
     FeatureConfiguration.enforceFeatureEnabledOrThrow(
         realmConfig, FeatureConfiguration.ENABLE_GENERIC_TABLES);
-    PolarisPrincipal principal = validatePrincipal(securityContext);
+    PolarisPrincipal principal = CatalogUtils.validatePrincipal(securityContext);
     String catalogName = prefixParser.prefixToCatalogName(prefix);
     return handlerFactory.createHandler(catalogName, principal);
   }
