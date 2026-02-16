@@ -21,6 +21,7 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.polaris.core.config.FeatureConfiguration.ALLOW_FEDERATED_CATALOGS_CREDENTIAL_VENDING;
 import static org.apache.polaris.core.config.FeatureConfiguration.LIST_PAGINATION_ENABLED;
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.validateLocationsForTableLike;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
@@ -884,8 +885,8 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
     try {
       // Delegate to common validation logic
-      CatalogUtils.validateLocationsForTableLike(
-          realmConfig(), tableIdentifier, tableLocations, resolvedStoragePath);
+      validateLocationsForTableLike(
+          realmConfig(), tableIdentifier, tableLocations, resolvedStoragePath.getRawFullPath());
 
       LOGGER
           .atInfo()
