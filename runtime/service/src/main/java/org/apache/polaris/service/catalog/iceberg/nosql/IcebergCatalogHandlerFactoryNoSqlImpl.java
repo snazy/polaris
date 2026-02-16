@@ -16,72 +16,77 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
+package org.apache.polaris.service.catalog.iceberg.nosql;
 
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.RequestScoped;
-import jakarta.enterprise.inject.Any;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.time.Clock;
-import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.catalog.ExternalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
-import org.apache.polaris.core.credentials.PolarisCredentialManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.ids.api.MonotonicClock;
+import org.apache.polaris.persistence.nosql.metastore.NoSqlCatalogs;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
+import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandler;
+import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFactory;
+import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
-import org.apache.polaris.service.context.catalog.CallContextCatalogFactory;
 import org.apache.polaris.service.events.EventAttributeMap;
+import org.apache.polaris.service.events.PolarisEventMetadataFactory;
+import org.apache.polaris.service.events.listeners.PolarisEventListener;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 
 @RequestScoped
-@Identifier("metastore")
-class IcebergCatalogHandlerFactoryImpl implements IcebergCatalogHandlerFactory {
+@Identifier("nosql")
+class IcebergCatalogHandlerFactoryNoSqlImpl implements IcebergCatalogHandlerFactory {
 
-  @Inject PolarisDiagnostics diagnostics;
   @Inject CallContext callContext;
   @Inject CatalogPrefixParser prefixParser;
-  @Inject ResolverFactory resolverFactory;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
-  @Inject PolarisMetaStoreManager metaStoreManager;
-  @Inject PolarisCredentialManager credentialManager;
-  @Inject CallContextCatalogFactory catalogFactory;
   @Inject PolarisAuthorizer authorizer;
   @Inject ReservedProperties reservedProperties;
-  @Inject CatalogHandlerUtils catalogHandlerUtils;
-  @Inject @Any Instance<ExternalCatalogFactory> externalCatalogFactories;
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject EventAttributeMap eventAttributeMap;
+  @Inject PolarisEventListener polarisEventListener;
+  @Inject FileIOFactory fileIOFactory;
+  @Inject MonotonicClock monotonicClock;
+  @Inject NoSqlCatalogs noSqlCatalogs;
+  @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject PolarisMetricsReporter metricsReporter;
   @Inject Clock clock;
 
+  // TODO ?
+  //  @Inject PolarisCredentialManager credentialManager;
+  //  @Inject CallContextCatalogFactory catalogFactory;
+  //  @Inject CatalogHandlerUtils catalogHandlerUtils;
+  //  @Inject @Any Instance<ExternalCatalogFactory> externalCatalogFactories;
+
   @Override
   public IcebergCatalogHandler createHandler(String catalogName, PolarisPrincipal principal) {
-    return IcebergCatalogHandlerImpl.builder()
+    var store = noSqlCatalogs.getCatalog(catalogName).orElseThrow();
+    return IcebergCatalogHandlerNoSqlImpl.builder()
         .catalogName(catalogName)
         .polarisPrincipal(principal)
-        .diagnostics(diagnostics)
         .callContext(callContext)
-        .prefixParser(prefixParser)
-        .resolverFactory(resolverFactory)
-        .resolutionManifestFactory(resolutionManifestFactory)
-        .metaStoreManager(metaStoreManager)
-        .credentialManager(credentialManager)
-        .catalogFactory(catalogFactory)
-        .authorizer(authorizer)
-        .reservedProperties(reservedProperties)
-        .catalogHandlerUtils(catalogHandlerUtils)
-        .externalCatalogFactories(externalCatalogFactories)
-        .storageAccessConfigProvider(storageAccessConfigProvider)
+        .polarisEventListener(polarisEventListener)
         .eventAttributeMap(eventAttributeMap)
+        .authorizer(authorizer)
+        .storageAccessConfigProvider(storageAccessConfigProvider)
+        .store(store)
+        .fileIOFactory(fileIOFactory)
+        .monotonicClock(monotonicClock)
+        .reservedProperties(reservedProperties)
+        .prefixParser(prefixParser)
+        .eventMetadataFactory(eventMetadataFactory)
         .metricsReporter(metricsReporter)
         .clock(clock)
+        .authorizer(authorizer)
+        .polarisPrincipal(principal)
+        //        .credentialManager(credentialManager)
+        //        .catalogFactory(catalogFactory)
+        //        .catalogHandlerUtils(catalogHandlerUtils)
+        //        .externalCatalogFactories(externalCatalogFactories)
         .build();
   }
 }

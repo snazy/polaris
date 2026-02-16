@@ -41,7 +41,10 @@ dependencies {
 
   compileOnly(project(":polaris-config-docs-annotations"))
 
-  runtimeOnly(project(":polaris-persistence-nosql-metastore"))
+  implementation(project(":polaris-idgen-api"))
+  implementation(project(":polaris-persistence-nosql-metastore"))
+  implementation(project(":polaris-persistence-nosql-metastore-types"))
+  implementation(project(":polaris-persistence-nosql-api"))
   runtimeOnly(project(":polaris-persistence-nosql-cdi-quarkus"))
   runtimeOnly(project(":polaris-persistence-nosql-cdi-quarkus-distcache"))
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
@@ -167,6 +170,9 @@ dependencies {
   testImplementation(testFixtures(project(":polaris-persistence-nosql-api")))
   testImplementation(project(":polaris-persistence-nosql-impl"))
 
+  testImplementation(platform(libs.nessie.bom))
+  testImplementation("org.projectnessie.nessie:nessie-object-storage-mock")
+
   testFixturesImplementation(project(":polaris-core"))
   testFixturesImplementation(project(":polaris-api-management-model"))
   testFixturesImplementation(project(":polaris-api-management-service"))
@@ -198,6 +204,9 @@ dependencies {
   testFixturesImplementation("com.azure:azure-core")
   testFixturesImplementation("com.azure:azure-storage-blob")
   testFixturesImplementation("com.azure:azure-storage-file-datalake")
+
+  testFixturesCompileOnly(project(":polaris-immutables"))
+  testFixturesAnnotationProcessor(project(":polaris-immutables", configuration = "processor"))
 
   // This dependency brings in RESTEasy Classic, which conflicts with Quarkus RESTEasy Reactive;
   // it must not be present during Quarkus augmentation otherwise Quarkus tests won't start.

@@ -26,6 +26,7 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.Startup;
 import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Default;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
@@ -67,6 +68,7 @@ import org.apache.polaris.service.auth.external.tenant.OidcTenantResolver;
 import org.apache.polaris.service.auth.internal.broker.TokenBroker;
 import org.apache.polaris.service.auth.internal.broker.TokenBrokerFactory;
 import org.apache.polaris.service.catalog.api.IcebergRestOAuth2ApiService;
+import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFactory;
 import org.apache.polaris.service.catalog.io.FileIOConfiguration;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.context.RealmContextConfiguration;
@@ -215,6 +217,15 @@ public class ServiceProducers {
       PersistenceConfiguration config,
       @Any Instance<MetaStoreManagerFactory> metaStoreManagerFactories) {
     return metaStoreManagerFactories.select(Identifier.Literal.of(config.type())).get();
+  }
+
+  @Produces
+  @RequestScoped
+  @Default
+  public IcebergCatalogHandlerFactory icebergCatalogHandlerFactory(
+      PersistenceConfiguration config, @Any Instance<IcebergCatalogHandlerFactory> factory) {
+    var type = "nosql".equals(config.type()) ? "nosql" : "metastore";
+    return factory.select(Identifier.Literal.of(type)).get();
   }
 
   @Produces
