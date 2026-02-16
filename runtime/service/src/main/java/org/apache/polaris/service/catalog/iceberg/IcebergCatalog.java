@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
+import static org.apache.polaris.service.catalog.common.CatalogUtils.validateLocationsForTableLike;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionWithSameNameForTableLikeEntity;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.entityNameForSubType;
@@ -28,6 +29,7 @@ import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.new
 import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.newViewMetadataFilePath;
 import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.parseVersionFromMetadataLocation;
 import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.tableMetadataFileLocation;
+import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.validateMetadataFileInTableDir;
 import static org.apache.polaris.service.exception.IcebergExceptionMapper.isStorageProviderRetryableException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1050,8 +1052,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       TableIdentifier identifier,
       String location,
       PolarisResolvedPathWrapper resolvedStorageEntity) {
-    CatalogUtils.validateLocationsForTableLike(
-        realmConfig, identifier, Set.of(location), resolvedStorageEntity);
+    validateLocationsForTableLike(
+        realmConfig, identifier, Set.of(location), resolvedStorageEntity.getRawFullPath());
   }
 
   /**
@@ -1560,8 +1562,8 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
         // for the storage configuration inherited under this entity's path.
         Set<String> dataLocations =
             StorageUtil.getLocationsUsedByTable(metadata.location(), metadata.properties());
-        CatalogUtils.validateLocationsForTableLike(
-            realmConfig, tableIdentifier, dataLocations, resolvedStorageEntity);
+        validateLocationsForTableLike(
+            realmConfig, tableIdentifier, dataLocations, resolvedStorageEntity.getRawFullPath());
         // also validate that the table location doesn't overlap an existing table
         dataLocations.forEach(
             location ->
@@ -1573,7 +1575,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
                     resolvedStorageEntity.getRawLeafEntity()));
         // and that the metadata file points to a location within the table's directory structure
         if (metadata.metadataFileLocation() != null) {
-          validateMetadataFileInTableDir(tableIdentifier, metadata);
+          validateMetadataFileInTableDir(realmConfig, tableIdentifier, metadata);
         }
       }
 
@@ -2056,25 +2058,6 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private void validateMetadataFileInTableDir(TableIdentifier identifier, TableMetadata metadata) {
-    boolean allowEscape = realmConfig.getConfig(FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION);
-    if (!allowEscape
-        && !realmConfig.getConfig(FeatureConfiguration.ALLOW_EXTERNAL_METADATA_FILE_LOCATION)) {
-      LOGGER.debug(
-          "Validating base location {} for table {} in metadata file {}",
-          metadata.location(),
-          identifier,
-          metadata.metadataFileLocation());
-      StorageLocation metadataFileLocation = StorageLocation.of(metadata.metadataFileLocation());
-      StorageLocation baseLocation = StorageLocation.of(metadata.location());
-      if (!metadataFileLocation.isChildOf(baseLocation)) {
-        throw new BadRequestException(
-            "Metadata location %s is not allowed outside of table location %s",
-            metadata.metadataFileLocation(), metadata.location());
-      }
-    }
-  }
-
   private FileIO loadFileIOForTableLike(
       TableIdentifier identifier,
       Set<String> readLocations,
@@ -2507,7 +2490,7 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
       validateLocationForTableLike(tableIdentifier, tableMetadata.location());
 
       // finally, validate that the metadata file is within the table directory
-      validateMetadataFileInTableDir(tableIdentifier, tableMetadata);
+      validateMetadataFileInTableDir(realmConfig, tableIdentifier, tableMetadata);
 
       // TODO: These might fail due to concurrent update; we need to do a retry in those cases.
       if (null == existingLocation) {
