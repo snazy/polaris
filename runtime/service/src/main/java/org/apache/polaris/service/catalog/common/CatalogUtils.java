@@ -21,6 +21,7 @@ package org.apache.polaris.service.catalog.common;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import jakarta.ws.rs.core.SecurityContext;
 import java.net.URLEncoder;
 import java.util.List;
 import java.util.Set;
@@ -28,8 +29,10 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -98,6 +101,14 @@ public class CatalogUtils {
                 }
               }
             });
+  }
+
+  public static PolarisPrincipal validatePrincipal(SecurityContext securityContext) {
+    var authenticatedPrincipal = securityContext.getUserPrincipal();
+    if (authenticatedPrincipal instanceof PolarisPrincipal polarisPrincipal) {
+      return polarisPrincipal;
+    }
+    throw new NotAuthorizedException("Failed to find authenticatedPrincipal in SecurityContext");
   }
 
   public static Namespace decodeNamespace(String namespace) {

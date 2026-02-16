@@ -28,7 +28,6 @@ import jakarta.ws.rs.core.SecurityContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogGenericTableApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
@@ -41,7 +40,7 @@ import org.apache.polaris.service.types.LoadGenericTableResponse;
 @Decorator
 @Priority(1000)
 public class CatalogGenericTableEventServiceDelegator
-    implements PolarisCatalogGenericTableApiService, CatalogAdapter {
+    implements PolarisCatalogGenericTableApiService {
 
   @Inject @Delegate GenericTableCatalogAdapter delegate;
   @Inject PolarisEventListener polarisEventListener;
