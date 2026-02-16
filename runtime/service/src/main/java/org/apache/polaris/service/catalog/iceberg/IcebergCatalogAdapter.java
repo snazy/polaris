@@ -390,11 +390,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          if (purgeRequested != null && purgeRequested) {
-            catalog.dropTableWithPurge(tableIdentifier);
-          } else {
-            catalog.dropTableWithoutPurge(tableIdentifier);
-          }
+          catalog.dropTable(tableIdentifier, purgeRequested != null && purgeRequested);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -516,11 +512,17 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          LoadTableResponse loadTableResponse =
-              catalog.loadTableWithAccessDelegation(
-                  tableIdentifier,
-                  "all",
-                  Optional.of(new PolarisResourcePaths(prefix).credentialsPath(tableIdentifier)));
+          var loadTableResponse =
+              catalog
+                  .loadTable(
+                      tableIdentifier,
+                      "all",
+                      null,
+                      EnumSet.of(VENDED_CREDENTIALS),
+                      Optional.of(
+                          new PolarisResourcePaths(prefix).credentialsPath(tableIdentifier)))
+                  .orElseThrow();
+
           return Response.ok(
                   ImmutableLoadCredentialsResponse.builder()
                       .credentials(loadTableResponse.credentials())
