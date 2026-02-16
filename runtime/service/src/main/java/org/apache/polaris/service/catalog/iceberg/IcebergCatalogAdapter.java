@@ -21,6 +21,7 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
 import static org.apache.polaris.service.catalog.common.CatalogUtils.validatePrincipal;
+import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.isUpdateTableRequestCreate;
 import static org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation.validateIcebergProperties;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -459,7 +460,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          if (IcebergCatalogHandler.isCreate(revisedRequest)) {
+          if (isUpdateTableRequestCreate(revisedRequest)) {
             return Response.ok(catalog.updateTableForStagedCreate(tableIdentifier, revisedRequest))
                 .build();
           } else {

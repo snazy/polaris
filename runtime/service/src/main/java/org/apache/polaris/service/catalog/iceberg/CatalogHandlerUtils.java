@@ -485,7 +485,7 @@ public class CatalogHandlerUtils {
   public LoadTableResponse updateTable(
       Catalog catalog, TableIdentifier ident, UpdateTableRequest request) {
     TableMetadata finalMetadata;
-    if (IcebergCatalogHandler.isCreate(request)) {
+    if (isUpdateTableRequestCreate(request)) {
       // this is a hacky way to get TableOperations for an uncommitted table
       Transaction transaction =
           catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
@@ -919,5 +919,22 @@ public class CatalogHandlerUtils {
     }
 
     return ops.current();
+  }
+
+  public static boolean isUpdateTableRequestCreate(UpdateTableRequest request) {
+    boolean isCreate =
+        request.requirements().stream()
+            .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
+
+    if (isCreate) {
+      List<UpdateRequirement> invalidRequirements =
+          request.requirements().stream()
+              .filter(req -> !(req instanceof UpdateRequirement.AssertTableDoesNotExist))
+              .collect(Collectors.toList());
+      Preconditions.checkArgument(
+          invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);
+    }
+
+    return isCreate;
   }
 }

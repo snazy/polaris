@@ -24,6 +24,7 @@ import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CRE
 import static org.apache.polaris.service.catalog.common.CatalogUtils.validateLocationsForTableLike;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
 import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils.isUpdateTableRequestCreate;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -224,27 +225,6 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
     CatalogEntity catalogEntity = resolutionManifest.getResolvedCatalogEntity();
     diagnostics().checkNotNull(catalogEntity, "No catalog available");
     return catalogEntity;
-  }
-
-  /**
-   * TODO: Make the helper in org.apache.iceberg.rest.CatalogHandlers public instead of needing to
-   * copy/paste here.
-   */
-  public static boolean isCreate(UpdateTableRequest request) {
-    boolean isCreate =
-        request.requirements().stream()
-            .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);
-
-    if (isCreate) {
-      List<UpdateRequirement> invalidRequirements =
-          request.requirements().stream()
-              .filter(req -> !(req instanceof UpdateRequirement.AssertTableDoesNotExist))
-              .collect(Collectors.toList());
-      Preconditions.checkArgument(
-          invalidRequirements.isEmpty(), "Invalid create requirements: %s", invalidRequirements);
-    }
-
-    return isCreate;
   }
 
   private boolean shouldDecodeToken() {
@@ -1064,7 +1044,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
                 throw new IllegalStateException(
                     "Cannot wrap catalog that does not produce BaseTable");
               }
-              if (isCreate(change)) {
+              if (isUpdateTableRequestCreate(change)) {
                 throw new BadRequestException(
                     "Unsupported operation: commitTranaction with updateForStagedCreate: %s",
                     change);
