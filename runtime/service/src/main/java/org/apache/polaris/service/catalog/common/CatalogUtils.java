@@ -24,6 +24,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import jakarta.ws.rs.core.SecurityContext;
 import java.net.URLEncoder;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
@@ -35,14 +36,18 @@ import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
+import org.apache.polaris.core.storage.LocationRestrictions;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 
 /** Utility methods for working with Polaris catalog entities. */
 public class CatalogUtils {
+
+  private CatalogUtils() {}
 
   /**
    * Find the resolved entity path that may contain storage information
@@ -70,7 +75,7 @@ public class CatalogUtils {
    * @param identifier the table identifier (for error messages)
    * @param locations the set of locations to validate (base location + write.data.path +
    *     write.metadata.path)
-   * @param resolvedStorageEntity the resolved path wrapper containing storage configuration
+   * @param locationRestrictions location restrictions
    * @throws ForbiddenException if any location is outside the allowed locations or if file
    *     locations are not allowed
    */
@@ -78,29 +83,55 @@ public class CatalogUtils {
       RealmConfig realmConfig,
       TableIdentifier identifier,
       Set<String> locations,
-      PolarisResolvedPathWrapper resolvedStorageEntity) {
+      Optional<LocationRestrictions> locationRestrictions) {
+    locationRestrictions.ifPresentOrElse(
+        restrictions -> restrictions.validate(realmConfig, identifier, locations),
+        () -> {
+          List<String> allowedStorageTypes =
+              realmConfig.getConfig(FeatureConfiguration.SUPPORTED_CATALOG_STORAGE_TYPES);
+          if (allowedStorageTypes != null
+              && !allowedStorageTypes.contains(StorageConfigInfo.StorageTypeEnum.FILE.name())) {
+            List<String> invalidLocations =
+                locations.stream()
+                    .filter(location -> location.startsWith("file:") || location.startsWith("http"))
+                    .collect(Collectors.toList());
+            if (!invalidLocations.isEmpty()) {
+              throw new ForbiddenException(
+                  "Invalid locations '%s' for identifier '%s': File locations are not allowed",
+                  invalidLocations, identifier);
+            }
+          }
+        });
+  }
 
-    PolarisStorageConfigurationInfo.forEntityPath(
-            realmConfig, resolvedStorageEntity.getRawFullPath())
-        .ifPresentOrElse(
-            restrictions -> restrictions.validate(realmConfig, identifier, locations),
-            () -> {
-              List<String> allowedStorageTypes =
-                  realmConfig.getConfig(FeatureConfiguration.SUPPORTED_CATALOG_STORAGE_TYPES);
-              if (allowedStorageTypes != null
-                  && !allowedStorageTypes.contains(StorageConfigInfo.StorageTypeEnum.FILE.name())) {
-                List<String> invalidLocations =
-                    locations.stream()
-                        .filter(
-                            location -> location.startsWith("file:") || location.startsWith("http"))
-                        .collect(Collectors.toList());
-                if (!invalidLocations.isEmpty()) {
-                  throw new ForbiddenException(
-                      "Invalid locations '%s' for identifier '%s': File locations are not allowed",
-                      invalidLocations, identifier);
-                }
-              }
-            });
+  public static void validateLocationsForTableLike(
+      RealmConfig realmConfig,
+      TableIdentifier identifier,
+      Set<String> locations,
+      List<PolarisEntity> resolvedStorageEntity) {
+    validateLocationsForTableLike(
+        realmConfig,
+        identifier,
+        locations,
+        PolarisStorageConfigurationInfo.forEntityPath(realmConfig, resolvedStorageEntity));
+  }
+
+  /**
+   * Deprecated, use {@link #validateLocationsForTableLike(RealmConfig, TableIdentifier, Set,
+   * Optional)} or {@link #validateLocationsForTableLike(RealmConfig, TableIdentifier, Set, List)}.
+   */
+  @Deprecated(forRemoval = true)
+  public static void validateLocationsForTableLike(
+      RealmConfig realmConfig,
+      TableIdentifier identifier,
+      Set<String> locations,
+      PolarisResolvedPathWrapper resolvedStorageEntity) {
+    validateLocationsForTableLike(
+        realmConfig,
+        identifier,
+        locations,
+        PolarisStorageConfigurationInfo.forEntityPath(
+            realmConfig, resolvedStorageEntity.getRawFullPath()));
   }
 
   public static PolarisPrincipal validatePrincipal(SecurityContext securityContext) {
