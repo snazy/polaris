@@ -19,6 +19,7 @@
 package org.apache.polaris.service.catalog.generic;
 
 import static org.apache.polaris.service.catalog.common.CatalogUtils.decodeNamespace;
+import static org.apache.polaris.service.catalog.common.CatalogUtils.validatePrincipal;
 
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
@@ -32,15 +33,13 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogGenericTableApiService;
-import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.types.CreateGenericTableRequest;
 import org.apache.polaris.service.types.ListGenericTablesResponse;
 import org.apache.polaris.service.types.LoadGenericTableResponse;
 
 @RequestScoped
-public class GenericTableCatalogAdapter
-    implements PolarisCatalogGenericTableApiService, CatalogAdapter {
+public class GenericTableCatalogAdapter implements PolarisCatalogGenericTableApiService {
 
   private final RealmConfig realmConfig;
   private final ReservedProperties reservedProperties;
