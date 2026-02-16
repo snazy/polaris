@@ -73,9 +73,9 @@ import org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogAdapter;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandler;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFactory;
+import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerImpl;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventServiceDelegator;
-import org.apache.polaris.service.catalog.iceberg.ImmutableIcebergCatalogHandler;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
@@ -328,7 +328,7 @@ public record TestServices(
             @Override
             public IcebergCatalogHandler createHandler(
                 String catalogName, PolarisPrincipal principal) {
-              return ImmutableIcebergCatalogHandler.builder()
+              return IcebergCatalogHandlerImpl.builder()
                   .catalogName(catalogName)
                   .polarisPrincipal(principal)
                   .diagnostics(diagnostics)

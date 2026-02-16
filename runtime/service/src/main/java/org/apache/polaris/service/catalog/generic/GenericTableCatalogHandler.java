@@ -35,7 +35,7 @@ import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.table.GenericTableEntity;
 import org.apache.polaris.immutables.PolarisImmutable;
-import org.apache.polaris.service.catalog.common.CatalogHandler;
+import org.apache.polaris.service.catalog.common.CatalogHandlerBase;
 import org.apache.polaris.service.types.GenericTable;
 import org.apache.polaris.service.types.ListGenericTablesResponse;
 import org.apache.polaris.service.types.LoadGenericTableResponse;
@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 
 @PolarisImmutable
 @SuppressWarnings("immutables:incompat")
-public abstract class GenericTableCatalogHandler extends CatalogHandler {
+public abstract class GenericTableCatalogHandler extends CatalogHandlerBase {
   private static final Logger LOGGER = LoggerFactory.getLogger(GenericTableCatalogHandler.class);
 
   protected abstract PolarisCredentialManager credentialManager();

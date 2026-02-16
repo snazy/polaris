@@ -195,16 +195,16 @@ public class IcebergCatalogAdapterTest {
     // Override handler creation to inject in-memory catalog and suppress actual close()
     Mockito.doAnswer(
             invocation -> {
-              IcebergCatalogHandler realHandler =
-                  (IcebergCatalogHandler) invocation.callRealMethod();
-              IcebergCatalogHandler wrappedHandler = Mockito.spy(realHandler);
+              IcebergCatalogHandlerImpl realHandler =
+                  (IcebergCatalogHandlerImpl) invocation.callRealMethod();
+              IcebergCatalogHandlerImpl wrappedHandler = Mockito.spy(realHandler);
 
               // Override initializeCatalog to inject test catalog using reflection
               Mockito.doAnswer(
                       innerInvocation -> {
                         for (String fieldName :
                             List.of("baseCatalog", "namespaceCatalog", "viewCatalog")) {
-                          Field field = IcebergCatalogHandler.class.getDeclaredField(fieldName);
+                          Field field = IcebergCatalogHandlerImpl.class.getDeclaredField(fieldName);
                           field.setAccessible(true);
                           field.set(wrappedHandler, catalog);
                         }
