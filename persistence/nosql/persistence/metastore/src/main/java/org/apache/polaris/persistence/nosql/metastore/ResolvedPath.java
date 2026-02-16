@@ -157,4 +157,8 @@ public record ResolvedPath(List<NamespaceObj> namespaceElements, Optional<Conten
       return objRefs;
     }
   }
+
+  public ResolvedPath withLeaf(ContentObj created) {
+    return new ResolvedPath(namespaceElements, Optional.of(created));
+  }
 }
