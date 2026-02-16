@@ -39,7 +39,7 @@ import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
 import org.apache.polaris.immutables.PolarisImmutable;
-import org.apache.polaris.service.catalog.common.CatalogHandler;
+import org.apache.polaris.service.catalog.common.CatalogHandlerBase;
 import org.apache.polaris.service.types.AttachPolicyRequest;
 import org.apache.polaris.service.types.CreatePolicyRequest;
 import org.apache.polaris.service.types.DetachPolicyRequest;
@@ -52,7 +52,7 @@ import org.apache.polaris.service.types.UpdatePolicyRequest;
 
 @PolarisImmutable
 @SuppressWarnings("immutables:incompat")
-public abstract class PolicyCatalogHandler extends CatalogHandler {
+public abstract class PolicyCatalogHandler extends CatalogHandlerBase {
 
   private PolicyCatalog policyCatalog;
 
