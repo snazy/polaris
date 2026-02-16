@@ -85,4 +85,8 @@ public record ResolvedPath(List<NamespaceObj> namespaceElements, Optional<Conten
     var leaf = fetched[0];
     return Optional.of(new ResolvedPath(namespaceElements, Optional.ofNullable(leaf)));
   }
+
+  public ResolvedPath withLeaf(ContentObj created) {
+    return new ResolvedPath(namespaceElements, Optional.of(created));
+  }
 }
