@@ -40,6 +40,9 @@ jobs:
   check:
     name: Check actions usage
     uses: snazy/infrastructure-actions/.github/workflows/check-project-actions.yml@check-repo-actions
+    permissions:
+      contents: read
+      pull-requests: write
     # Optional: specify a different repository and/or ref to check. These options are passed to
     # GitHub actions/checkout, see https://github.com/actions/checkout?tab=readme-ov-file#usage for details.
     #with:
