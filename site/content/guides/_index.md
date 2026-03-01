@@ -82,6 +82,9 @@ More information about guides-testing can be found in the `site/it/README.md` fi
 1. `docker compose` invocations must be on a single line in a `shell` code block.
 2. When invoking Spark SQL shell in a `shell` code block, the `bin/spark-sql ...` invocation
    must be the only statement in that code block.
+3. Currently, only one _docker-compose_ file is supported per guide. Using multiple
+   docker-compose files needs some changes to the testing code,
+   see [here](https://github.com/apache/polaris/pull/3553#discussion_r2868090144).
 
 ### Tips for Docker usage
 
