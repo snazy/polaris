@@ -159,7 +159,7 @@ def generate_markdown_test_script(markdown_file: Path, output_file: Path, code_b
             elif code_block.code_type == "sqlshell":
                 sql_code: List[str] = ['cat > "${BUILD_TESTS_DIR}/.current.sql" <<SQL_SNIPPET_EOF']
                 for nested_code_block in code_block.nested_code_blocks:
-                    sql_code.append("-------------------------------------------------------------------")
+                    sql_code.append("-" * 67)
                     sql_code.append(f"-- SQL code block starting at line {nested_code_block.line_no}")
                     sql_code += nested_code_block.code
                 sql_code.append("SQL_SNIPPET_EOF")

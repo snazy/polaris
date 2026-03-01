@@ -23,7 +23,7 @@ import time
 
 from .tee import Tee
 
-DASH_LINE = "------------------------------------------------------------------------------------------------"
+DASH_LINE = "-" * 96
 
 
 def cleanup_docker(tee: Tee) -> float:

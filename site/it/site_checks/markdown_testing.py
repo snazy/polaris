@@ -123,7 +123,7 @@ def run_test(
                 .. Docker Compose Info: {_format_duration(docker_info_duration)}
                 .. Docker Cleanup: {_format_duration(cleanup_duration)}
             """))
-        tee.printf("************************************************************************************************")
+        tee.printf("*" * 96)
 
     return not failed
 
