@@ -37,31 +37,24 @@ def cleanup_docker(tee: Tee) -> float:
     try:
         tee.printf("::group::Cleanup Docker containers, networks, volumes")
         tee.printf("Purging Docker containers...")
-        try:
-            result = subprocess.run(
-                ["docker", "ps", "-a", "-q"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            container_ids = [line for line in result.stdout.splitlines() if line.strip()]
-            if container_ids:
-                tee.run(["docker", "container", "rm", "-f", *container_ids])
-        except FileNotFoundError:
-            pass
+        result = subprocess.run(
+            ["docker", "ps", "-a", "-q"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        container_ids = [line for line in result.stdout.splitlines() if line.strip()]
+        if container_ids:
+            tee.run(["docker", "container", "rm", "-f", *container_ids])
         tee.printf("Purging Docker networks...")
-        try:
-            tee.run(["docker", "network", "prune", "-f"])
-        except FileNotFoundError:
-            pass
+        tee.run(["docker", "network", "prune", "-f"])
         tee.printf("Purging Docker volumes...")
-        try:
-            tee.run(["docker", "volume", "prune", "-f"])
-        except FileNotFoundError:
-            pass
-        tee.printf("::endgroup::")
-    finally:
-        return time.monotonic() - start
+        tee.run(["docker", "volume", "prune", "-f"])
+    except Exception as e:
+        tee.printf(f"Failed to cleanup Docker containers, networks, volumes: {repr(e)}")
+        pass
+    tee.printf("::endgroup::")
+    return time.monotonic() - start
 
 
 def docker_compose_info(tee: Tee, md_base_name: str, md_dir_name: str) -> float:

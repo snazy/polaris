@@ -54,7 +54,7 @@ def run_test(
     build_tests_dir: Path,
     test_summary_file: Path,
     env: dict[str, str],
-    code_blocks_global: CodeBlocksGlobal
+    code_blocks_global: CodeBlocksGlobal,
 ) -> bool:
     """
     Exercises testing of a single Markdown file.
@@ -117,12 +117,14 @@ def run_test(
         docker_info_duration = docker_compose_info(tee, md_base_name, md_dir_name)
         cleanup_duration = cleanup_docker(tee)
 
-        tee.printf(dedent(f"""
-            Test steps durations for for {md_file} ({'❌ FAILED' if failed else '✅ passed'}):
+        tee.printf(
+            dedent(f"""
+            Test steps durations for for {md_file} ({"❌ FAILED" if failed else "✅ passed"}):
                 .. Test: {duration_str}
                 .. Docker Compose Info: {_format_duration(docker_info_duration)}
                 .. Docker Cleanup: {_format_duration(cleanup_duration)}
-            """))
+            """)
+        )
         tee.printf("*" * 96)
 
     return not failed

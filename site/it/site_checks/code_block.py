@@ -84,7 +84,9 @@ class CodeBlockBase:
     line_no: int
     skip_all: bool
 
-    def __init__(self, line_no: int, start_marker: str, indent: int, code_type: Optional[str] = None, skip_all: bool = False):
+    def __init__(
+        self, line_no: int, start_marker: str, indent: int, code_type: Optional[str] = None, skip_all: bool = False
+    ):
         self.line_no = line_no
         self.start_marker = start_marker
         self.indent = indent
@@ -94,17 +96,21 @@ class CodeBlockBase:
         self.skip_all = skip_all
 
     def code_append(self, line: str) -> None:
-        self.code.append(line[self.indent:].rstrip())
+        self.code.append(line[self.indent :].rstrip())
 
     def __str__(self) -> str:
-        return (f"CodeBlock(line_no={self.line_no}, code_type={self.code_type!r}, "
-                f"skip_all={self.skip_all}, indent={self.indent}, lines={len(self.code)})")
+        return (
+            f"CodeBlock(line_no={self.line_no}, code_type={self.code_type!r}, "
+            f"skip_all={self.skip_all}, indent={self.indent}, lines={len(self.code)})"
+        )
 
 
 class CodeBlock(CodeBlockBase):
     nested_code_blocks: List[CodeBlockBase]
 
-    def __init__(self, line_no: int, start_marker: str, indent: int, code_type: Optional[str] = None, skip_all: bool = False):
+    def __init__(
+        self, line_no: int, start_marker: str, indent: int, code_type: Optional[str] = None, skip_all: bool = False
+    ):
         super().__init__(line_no, start_marker, indent, code_type, skip_all)
         self.nested_code_blocks = []
 
@@ -128,7 +134,9 @@ def emit_code_block(f: TextIOBase, type_name: str, code: List[str], line_no: int
     :param code: Code block lines.
     :param line_no: Starting line number of the code block in the Markdown file.
     """
-    f.write(f'echo "::group::Dump of {"skipped/repeated " if skipped else ""}{type_name} code block at line {line_no}"\n')
+    f.write(
+        f'echo "::group::Dump of {"skipped/repeated " if skipped else ""}{type_name} code block at line {line_no}"\n'
+    )
     # Write the code block to be `echo`d so it is shown in the CI job log.
     f.write("cat <<CODE_SNIPPET_DUMP\n")
     for line in code:

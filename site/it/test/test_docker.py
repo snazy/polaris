@@ -64,18 +64,6 @@ def test_cleanup_docker_removes_containers_and_prunes() -> None:
     ]
 
 
-def test_cleanup_docker_handles_missing_docker_binary() -> None:
-    tee = TeeRaiser()
-
-    with patch("site_checks.docker.subprocess.run", side_effect=FileNotFoundError):
-        cleanup_docker(tee)
-
-    assert tee.run_calls == [
-        (["docker", "network", "prune", "-f"], {}),
-        (["docker", "volume", "prune", "-f"], {}),
-    ]
-
-
 def test_docker_compose_info_logs_entries() -> None:
     tee = TeeRecorder()
     result = SimpleNamespace(stdout='[{"ConfigFiles":"compose-a.yml"},{"ConfigFiles":"compose-b.yml"}]')

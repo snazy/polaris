@@ -58,8 +58,14 @@ from pathlib import Path
 from textwrap import dedent
 from typing import List, Optional
 
-from .code_block import CodeBlock, CodeBlocksGlobal, \
-    emit_code_block, tweak_curl, tweak_docker_compose_up, tweak_spark_sql
+from .code_block import (
+    CodeBlock,
+    CodeBlocksGlobal,
+    emit_code_block,
+    tweak_curl,
+    tweak_docker_compose_up,
+    tweak_spark_sql,
+)
 
 open_pattern = re.compile("((\\s*)`{3,})([a-z0-9-_:]+)?\\s*(\\bskip_all\\b)?\\s*")
 close_pattern = re.compile("(\\s*`{3,})")
@@ -90,7 +96,7 @@ def generate_markdown_test_script(markdown_file: Path, output_file: Path, code_b
                         start_marker=open_match.group(1),
                         indent=len(open_match.group(2)),
                         code_type=open_match.group(3),
-                        skip_all=open_match.group(4) is not None
+                        skip_all=open_match.group(4) is not None,
                     )
             else:
                 close_match = re.match(close_pattern, line)
@@ -154,8 +160,13 @@ def generate_markdown_test_script(markdown_file: Path, output_file: Path, code_b
                 code = tweak_docker_compose_up(code_block.code)
                 code = tweak_curl(code)
                 code = tweak_spark_sql(code)
-                emit_code_block(f=f, type_name="shell", code=code, line_no=code_block.line_no,
-                                skipped=code_blocks_global.is_skipped(code_block))
+                emit_code_block(
+                    f=f,
+                    type_name="shell",
+                    code=code,
+                    line_no=code_block.line_no,
+                    skipped=code_blocks_global.is_skipped(code_block),
+                )
             elif code_block.code_type == "sqlshell":
                 sql_code: List[str] = ['cat > "${BUILD_TESTS_DIR}/.current.sql" <<SQL_SNIPPET_EOF']
                 for nested_code_block in code_block.nested_code_blocks:
