@@ -20,7 +20,7 @@
 import subprocess
 from pathlib import Path
 
-SPARK_TGZ_URL = "https://downloads.apache.org/spark/spark-3.5.8/spark-3.5.8-bin-hadoop3.tgz"
+SPARK_TGZ_URL = "https://www.apache.org/dyn/closer.lua/spark/spark-3.5.8/spark-3.5.8-bin-hadoop3.tgz?action=download"
 
 
 def ensure_spark(
