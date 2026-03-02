@@ -43,6 +43,7 @@ import org.apache.polaris.service.events.PolarisEventMetadata;
 import org.apache.polaris.service.events.PolarisEventType;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -67,12 +68,6 @@ class AwsCloudWatchEventListenerTest {
   private static final Logger LOGGER =
       LoggerFactory.getLogger(AwsCloudWatchEventListenerTest.class);
 
-  private static final LocalStackContainer LOCAL_STACK =
-      new LocalStackContainer(
-              containerSpecHelper("localstack", AwsCloudWatchEventListenerTest.class)
-                  .dockerImageName(null))
-          .withServices("logs");
-
   private static final String LOG_GROUP = "test-log-group";
   private static final String LOG_STREAM = "test-log-stream";
   private static final String REALM = "test-realm";
@@ -81,17 +76,30 @@ class AwsCloudWatchEventListenerTest {
       PolarisPrincipal.of(TEST_USER, Map.of(), Set.of("role1", "role2"));
   private static final Clock CLOCK = Clock.systemUTC();
 
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-  static {
-    new PolarisIcebergObjectMapperCustomizer(new MemorySize(BigInteger.valueOf(1024 * 1024)))
-        .customize(OBJECT_MAPPER);
-  }
+  private static LocalStackContainer localStackContainer;
+  private static ObjectMapper objectMapper;
 
   @Mock private AwsCloudWatchConfiguration config;
 
   private ExecutorService executorService;
   private AutoCloseable mockitoContext;
+
+  @BeforeAll
+  static void initialize() {
+    objectMapper = new ObjectMapper();
+    new PolarisIcebergObjectMapperCustomizer(new MemorySize(BigInteger.valueOf(1024 * 1024)))
+        .customize(objectMapper);
+
+    localStackContainer =
+        new LocalStackContainer(
+                containerSpecHelper("localstack", AwsCloudWatchEventListenerTest.class)
+                    .dockerImageName(null))
+            .withServices("logs");
+    var localStackAuthToken = System.getenv("LOCALSTACK_AUTH_TOKEN");
+    if (localStackAuthToken != null) {
+      localStackContainer.withEnv("LOCALSTACK_AUTH_TOKEN", localStackAuthToken);
+    }
+  }
 
   @BeforeEach
   void setUp() {
@@ -116,26 +124,27 @@ class AwsCloudWatchEventListenerTest {
         LOGGER.warn("ExecutorService did not terminate in time");
       }
     }
-    if (LOCAL_STACK.isRunning()) {
-      LOCAL_STACK.stop();
+    if (localStackContainer.isRunning()) {
+      localStackContainer.stop();
     }
   }
 
   private CloudWatchLogsAsyncClient createCloudWatchAsyncClient() {
-    if (!LOCAL_STACK.isRunning()) {
-      LOCAL_STACK.start();
+    if (!localStackContainer.isRunning()) {
+      localStackContainer.start();
     }
     return CloudWatchLogsAsyncClient.builder()
-        .endpointOverride(LOCAL_STACK.getEndpoint())
+        .endpointOverride(localStackContainer.getEndpoint())
         .credentialsProvider(
             StaticCredentialsProvider.create(
-                AwsBasicCredentials.create(LOCAL_STACK.getAccessKey(), LOCAL_STACK.getSecretKey())))
-        .region(Region.of(LOCAL_STACK.getRegion()))
+                AwsBasicCredentials.create(
+                    localStackContainer.getAccessKey(), localStackContainer.getSecretKey())))
+        .region(Region.of(localStackContainer.getRegion()))
         .build();
   }
 
   private AwsCloudWatchEventListener createListener(CloudWatchLogsAsyncClient client) {
-    return new AwsCloudWatchEventListener(config, OBJECT_MAPPER, CLOCK) {
+    return new AwsCloudWatchEventListener(config, objectMapper, CLOCK) {
       @Override
       protected CloudWatchLogsAsyncClient createCloudWatchAsyncClient() {
         return client;
