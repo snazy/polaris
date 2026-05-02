@@ -18,7 +18,7 @@
 # under the License.
 #
 title: 'Apache Polaris Documentation (Unreleased)'
-linkTitle: 'In Development'
+linkTitle: 'Developer Docs'
 type: docs
 weight: 200
 params:
@@ -27,8 +27,9 @@ params:
 menus:
   main:
     parent: doc
-    weight: -999998 # 2nd item in the menu
+    weight: 999999 # last item in the docs dropdown
     identifier: doc-in-dev
+    name: Developer Docs (main branch, unreleased)
 cascade:
   type: docs
   params:
