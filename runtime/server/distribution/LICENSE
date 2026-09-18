@@ -202,6 +202,108 @@
 
 --------------------------------------------------------------------------------
 
+This product bundles the DataStax Java Driver.
+
+* Maven group:artifact IDs: com.datastax.oss:native-protocol
+* Maven group:artifact IDs: org.apache.cassandra:java-driver-core
+* Maven group:artifact IDs: org.apache.cassandra:java-driver-guava-shaded
+* Maven group:artifact IDs: org.apache.cassandra:java-driver-metrics-micrometer
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR FFI.
+
+* Maven group:artifact IDs: com.github.jnr:jffi
+* Maven group:artifact IDs: com.github.jnr:jnr-a64asm
+* Maven group:artifact IDs: com.github.jnr:jnr-constants
+* Maven group:artifact IDs: com.github.jnr:jnr-ffi
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JCIP Annotations.
+
+* Maven group:artifact IDs: com.github.stephenc.jcip:jcip-annotations
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud Bigtable APIs.
+
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-admin-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.cloud:google-cloud-bigtable
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Typesafe Config.
+
+* Maven group:artifact IDs: com.typesafe:config
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Dropwizard Metrics.
+
+* Maven group:artifact IDs: io.dropwizard.metrics:metrics-core
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Quarkus Google Cloud Services.
+
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-bigtable
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common-grpc
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles RocksDB JNI.
+
+* Maven group:artifact IDs: org.rocksdb:rocksdbjni
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR POSIX.
+
+* Maven group:artifact IDs: com.github.jnr:jnr-posix
+
+Project URL: https://github.com/jnr/jnr-posix
+License: Eclipse Public License 2.0 - https://www.eclipse.org/legal/epl-2.0/
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR x86asm.
+
+* Maven group:artifact IDs: com.github.jnr:jnr-x86asm
+
+Project URL: https://github.com/jnr/jnr-x86asm
+License: MIT License - https://opensource.org/license/mit
+
+--------------------------------------------------------------------------------
+
+This product bundles Zstd JNI.
+
+* Maven group:artifact IDs: com.github.luben:zstd-jni
+
+Project URL: https://github.com/luben/zstd-jni
+License: BSD 2-Clause - https://opensource.org/license/bsd-2-clause
+
+--------------------------------------------------------------------------------
+
 This product bundles and includes code from Apache Iceberg.
 
 * Maven group:artifact IDs: org.apache.iceberg:iceberg-api
@@ -421,6 +523,7 @@ This product bundles Quarkus Amazon Services.
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-apache5-client-internal
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-common
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-common-spi
+* Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-dynamodb
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-netty-client-internal
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-opentelemetry-internal
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-rds
@@ -1988,6 +2091,7 @@ This product bundles AWS SDK for Java.
 * Maven group:artifact IDs: software.amazon.awssdk:checksums-spi
 * Maven group:artifact IDs: software.amazon.awssdk:cloudwatchlogs
 * Maven group:artifact IDs: software.amazon.awssdk:crt-core
+* Maven group:artifact IDs: software.amazon.awssdk:dynamodb
 * Maven group:artifact IDs: software.amazon.awssdk:endpoints-spi
 * Maven group:artifact IDs: software.amazon.awssdk:http-auth
 * Maven group:artifact IDs: software.amazon.awssdk:http-auth-aws
@@ -2012,6 +2116,7 @@ This product bundles AWS SDK for Java.
 * Maven group:artifact IDs: software.amazon.awssdk:third-party-jackson-core
 * Maven group:artifact IDs: software.amazon.awssdk:utils
 * Maven group:artifact IDs: software.amazon.awssdk:utils-lite
+* Maven group:artifact IDs: software.amazon.awssdk:url-connection-client
 
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
@@ -2368,6 +2473,10 @@ License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 This product bundles ASM library.
 
 * Maven group:artifact IDs: org.ow2.asm:asm
+* Maven group:artifact IDs: org.ow2.asm:asm-analysis
+* Maven group:artifact IDs: org.ow2.asm:asm-commons
+* Maven group:artifact IDs: org.ow2.asm:asm-tree
+* Maven group:artifact IDs: org.ow2.asm:asm-util
 
 Home page: https://gitlab.ow2.org/asm/asm
 License: BSD 3-Clause

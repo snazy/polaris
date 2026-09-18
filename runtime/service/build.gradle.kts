@@ -54,6 +54,31 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-mongodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-jdbc")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-jdbc-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-rocksdb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-rocksdb-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-cassandra")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-cassandra-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-bigtable")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-bigtable-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-dynamodb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-dynamodb-quarkus")
+    }
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 
@@ -75,7 +100,6 @@ dependencies {
   implementation("io.quarkus:quarkus-security")
   implementation("io.quarkus:quarkus-smallrye-context-propagation")
   implementation("io.quarkus:quarkus-smallrye-fault-tolerance")
-  runtimeOnly("io.quarkus:quarkus-jdbc-postgresql")
 
   implementation(libs.jakarta.enterprise.cdi.api)
   implementation(libs.jakarta.inject.api)
@@ -167,6 +191,9 @@ dependencies {
 
   testImplementation(platform(libs.testcontainers.bom))
   testImplementation("org.testcontainers:testcontainers")
+  testImplementation("org.testcontainers:testcontainers-cassandra")
+  testImplementation(platform(libs.cassandra.driver.bom))
+  testImplementation("org.apache.cassandra:java-driver-core")
   testImplementation("org.testcontainers:testcontainers-postgresql")
   testImplementation(project(":polaris-floci-aws-testcontainer"))
   testImplementation(project(":polaris-floci-az-testcontainer"))
@@ -186,6 +213,8 @@ dependencies {
   testImplementation(project(":polaris-persistence-nosql-api"))
   testImplementation(testFixtures(project(":polaris-persistence-nosql-api")))
   testImplementation(project(":polaris-persistence-nosql-impl"))
+  testImplementation(project(":polaris-persistence-nosql-cassandra"))
+  testImplementation(testFixtures(project(":polaris-persistence-nosql-cassandra")))
 
   testFixturesImplementation(project(":polaris-core"))
   testFixturesImplementation(project(":polaris-api-management-model"))
