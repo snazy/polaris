@@ -1,0 +1,116 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.gradle.api.attributes.Bundling
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.LibraryElements
+import org.gradle.api.attributes.Usage
+import org.gradle.api.attributes.java.TargetJvmVersion
+import org.gradle.api.component.AdhocComponentWithVariants
+
+plugins {
+  id("org.kordamp.gradle.jandex")
+  id("polaris-server")
+}
+
+val quarkusJarLibraryElements = objects.named(LibraryElements::class.java, LibraryElements.JAR)
+val quarkusRuntimeOnly =
+  configurations.dependencyScope("quarkusRuntimeOnly") {
+    extendsFrom(configurations.implementation.get(), configurations.runtimeOnly.get())
+    // spotbugs-annotations has only a GPL license.
+    exclude("com.github.spotbugs", "spotbugs-annotations")
+  }
+val quarkusRuntimeElements =
+  configurations.consumable("quarkusRuntimeElements") {
+    extendsFrom(quarkusRuntimeOnly.get())
+    attributes {
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, Usage.JAVA_RUNTIME))
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category::class.java, Category.LIBRARY))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, quarkusJarLibraryElements)
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling::class.java, Bundling.EXTERNAL))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+    }
+    outgoing {
+      artifact(tasks.named("jar"))
+      capability("$group:${project.name}-quarkus:$version")
+    }
+  }
+
+(components["java"] as AdhocComponentWithVariants).addVariantsFromConfiguration(
+  quarkusRuntimeElements.get()
+) {}
+
+dependencies {
+  implementation(project(":polaris-persistence-nosql-api"))
+  implementation(project(":polaris-persistence-nosql-impl"))
+  implementation(project(":polaris-idgen-api"))
+  compileOnly(project(":polaris-persistence-nosql-cdi-quarkus"))
+
+  implementation(platform(libs.cassandra.driver.bom))
+  implementation("org.apache.cassandra:java-driver-core") {
+    // spotbugs-annotations has only a GPL license!
+    exclude("com.github.spotbugs", "spotbugs-annotations")
+  }
+
+  implementation(libs.guava)
+  implementation(libs.slf4j.api)
+
+  compileOnly(libs.jakarta.annotation.api)
+  compileOnly(libs.jakarta.validation.api)
+  compileOnly(libs.jakarta.inject.api)
+  compileOnly(libs.jakarta.enterprise.cdi.api)
+  compileOnly(libs.smallrye.config.core)
+  compileOnly(platform(libs.quarkus.bom))
+  compileOnly("io.quarkus:quarkus-core")
+  compileOnly(libs.cassandra.quarkus.client)
+  add("quarkusRuntimeOnly", platform(libs.quarkus.bom))
+  add("quarkusRuntimeOnly", libs.cassandra.quarkus.client)
+
+  compileOnly(project(":polaris-immutables"))
+  annotationProcessor(project(":polaris-immutables", configuration = "processor"))
+
+  compileOnly(platform(libs.jackson.bom))
+  compileOnly("com.fasterxml.jackson.core:jackson-annotations")
+  compileOnly("com.fasterxml.jackson.core:jackson-databind")
+
+  testFixturesApi(testFixtures(project(":polaris-persistence-nosql-impl")))
+  testFixturesApi(project(":polaris-persistence-nosql-testextension"))
+
+  testFixturesCompileOnly(libs.jakarta.annotation.api)
+  testFixturesCompileOnly(libs.jakarta.validation.api)
+
+  testFixturesCompileOnly(project(":polaris-immutables"))
+  testFixturesAnnotationProcessor(project(":polaris-immutables", configuration = "processor"))
+
+  testFixturesImplementation(project(":polaris-container-spec-helper"))
+
+  testFixturesImplementation(platform(libs.cassandra.driver.bom))
+  testFixturesImplementation("org.apache.cassandra:java-driver-core")
+
+  testFixturesImplementation(platform(libs.testcontainers.bom))
+  testFixturesImplementation("org.testcontainers:testcontainers-cassandra") {
+    exclude("com.datastax.cassandra", "cassandra-driver-core")
+  }
+}
+
+testing {
+  suites {
+    register<JvmTestSuite>("intTest") {}
+  }
+}

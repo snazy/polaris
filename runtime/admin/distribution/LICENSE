@@ -202,6 +202,131 @@
 
 --------------------------------------------------------------------------------
 
+This product bundles the DataStax Java Driver.
+
+* Maven group:artifact IDs: com.datastax.oss.quarkus:cassandra-quarkus-client
+* Maven group:artifact IDs: com.datastax.oss:native-protocol
+* Maven group:artifact IDs: org.apache.cassandra:java-driver-core
+* Maven group:artifact IDs: org.apache.cassandra:java-driver-guava-shaded
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR FFI.
+
+* Maven group:artifact IDs: com.github.jnr:jffi
+* Maven group:artifact IDs: com.github.jnr:jnr-a64asm
+* Maven group:artifact IDs: com.github.jnr:jnr-constants
+* Maven group:artifact IDs: com.github.jnr:jnr-ffi
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JCIP Annotations.
+
+* Maven group:artifact IDs: com.github.stephenc.jcip:jcip-annotations
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud Bigtable APIs.
+
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-admin-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.cloud:google-cloud-bigtable
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Typesafe Config.
+
+* Maven group:artifact IDs: com.typesafe:config
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Dropwizard Metrics.
+
+* Maven group:artifact IDs: io.dropwizard.metrics:metrics-core
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Quarkus Google Cloud Services.
+
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-bigtable
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common-grpc
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles RocksDB JNI.
+
+* Maven group:artifact IDs: org.rocksdb:rocksdbjni
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles ASM library.
+
+* Maven group:artifact IDs: org.ow2.asm:asm
+* Maven group:artifact IDs: org.ow2.asm:asm-analysis
+* Maven group:artifact IDs: org.ow2.asm:asm-commons
+* Maven group:artifact IDs: org.ow2.asm:asm-tree
+* Maven group:artifact IDs: org.ow2.asm:asm-util
+
+Home page: https://gitlab.ow2.org/asm/asm
+License: BSD 3-Clause - https://gitlab.ow2.org/asm/asm/-/blob/master/LICENSE.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR POSIX.
+
+* Maven group:artifact IDs: com.github.jnr:jnr-posix
+
+Project URL: https://github.com/jnr/jnr-posix
+License: Eclipse Public License 2.0 - https://www.eclipse.org/legal/epl-2.0/
+
+--------------------------------------------------------------------------------
+
+This product bundles JNR x86asm.
+
+* Maven group:artifact IDs: com.github.jnr:jnr-x86asm
+
+Project URL: https://github.com/jnr/jnr-x86asm
+License: MIT License - https://opensource.org/license/mit
+
+--------------------------------------------------------------------------------
+
+This product bundles Zstd JNI.
+
+* Maven group:artifact IDs: com.github.luben:zstd-jni
+
+Project URL: https://github.com/luben/zstd-jni
+License: BSD 2-Clause - https://opensource.org/license/bsd-2-clause
+
+--------------------------------------------------------------------------------
+
+This product bundles GraalVM libraries.
+
+* Maven group:artifact IDs: org.graalvm.sdk:nativeimage
+* Maven group:artifact IDs: org.graalvm.sdk:word
+
+Project URL: https://github.com/oracle/graal/
+License: Universal Permissive License (UPL) 1.0 - https://github.com/oracle/graal/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
 This product bundles and includes code from Apache Iceberg.
 
 * Maven group:artifact IDs: org.apache.iceberg:iceberg-api
@@ -299,6 +424,7 @@ This product bundles Quarkus.
 * Maven group:artifact IDs: io.quarkus:quarkus-development-mode-spi
 * Maven group:artifact IDs: io.quarkus:quarkus-devservices
 * Maven group:artifact IDs: io.quarkus:quarkus-fs-util
+* Maven group:artifact IDs: io.quarkus:quarkus-grpc-common
 * Maven group:artifact IDs: io.quarkus:quarkus-jdbc-postgresql
 * Maven group:artifact IDs: io.quarkus:quarkus-jsonp
 * Maven group:artifact IDs: io.quarkus:quarkus-micrometer
@@ -310,6 +436,7 @@ This product bundles Quarkus.
 * Maven group:artifact IDs: io.quarkus:quarkus-picocli
 * Maven group:artifact IDs: io.quarkus:quarkus-security-runtime-spi
 * Maven group:artifact IDs: io.quarkus:quarkus-smallrye-context-propagation
+* Maven group:artifact IDs: io.quarkus:quarkus-smallrye-health
 * Maven group:artifact IDs: io.quarkus:quarkus-tls-registry
 * Maven group:artifact IDs: io.quarkus:quarkus-tls-registry-spi
 * Maven group:artifact IDs: io.quarkus:quarkus-transaction-annotations
@@ -343,6 +470,9 @@ This product bundles several SmallRye project artifacts.
 * Maven group:artifact IDs: io.smallrye.config:smallrye-config
 * Maven group:artifact IDs: io.smallrye.config:smallrye-config-common
 * Maven group:artifact IDs: io.smallrye.config:smallrye-config-core
+* Maven group:artifact IDs: io.smallrye:smallrye-health
+* Maven group:artifact IDs: io.smallrye:smallrye-health-api
+* Maven group:artifact IDs: io.smallrye:smallrye-health-provided-checks
 * Maven group:artifact IDs: io.smallrye.reactive:mutiny
 * Maven group:artifact IDs: io.smallrye.reactive:mutiny-reactive-streams-operators
 * Maven group:artifact IDs: io.smallrye.reactive:mutiny-smallrye-context-propagation
@@ -373,6 +503,7 @@ This product bundles Quarkus Amazon Services.
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-apache5-client-internal
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-common
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-common-spi
+* Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-dynamodb
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-netty-client-internal
 * Maven group:artifact IDs: io.quarkiverse.amazonservices:quarkus-amazon-rds
 
@@ -932,6 +1063,7 @@ This product bundles gRPC.
 * Maven group:artifact IDs: io.grpc:grpc-auth
 * Maven group:artifact IDs: io.grpc:grpc-context
 * Maven group:artifact IDs: io.grpc:grpc-core
+* Maven group:artifact IDs: io.grpc:grpc-netty
 * Maven group:artifact IDs: io.grpc:grpc-googleapis
 * Maven group:artifact IDs: io.grpc:grpc-grpclb
 * Maven group:artifact IDs: io.grpc:grpc-inprocess
@@ -1052,6 +1184,10 @@ This product bundles VertX.
 * Maven group:artifact IDs: io.vertx:vertx-bridge-common
 * Maven group:artifact IDs: io.vertx:vertx-codegen
 * Maven group:artifact IDs: io.vertx:vertx-core
+* Maven group:artifact IDs: io.vertx:vertx-grpc
+* Maven group:artifact IDs: io.vertx:vertx-grpc-client
+* Maven group:artifact IDs: io.vertx:vertx-grpc-common
+* Maven group:artifact IDs: io.vertx:vertx-grpc-server
 * Maven group:artifact IDs: io.vertx:vertx-uri-template
 * Maven group:artifact IDs: io.vertx:vertx-web
 * Maven group:artifact IDs: io.vertx:vertx-web-common
@@ -1350,6 +1486,7 @@ This product bundles Microprofile.
 
 * Maven group:artifact IDs: org.eclipse.microprofile.config:microprofile-config-api
 * Maven group:artifact IDs: org.eclipse.microprofile.context-propagation:microprofile-context-propagation-api
+* Maven group:artifact IDs: org.eclipse.microprofile.health:microprofile-health-api
 * Maven group:artifact IDs: org.eclipse.microprofile.reactive-streams-operators:microprofile-reactive-streams-operators-api
 * Maven group:artifact IDs: org.eclipse.microprofile.reactive-streams-operators:microprofile-reactive-streams-operators-core
 
@@ -1654,6 +1791,7 @@ This product bundles AWS SDK for Java.
 * Maven group:artifact IDs: software.amazon.awssdk:checksums
 * Maven group:artifact IDs: software.amazon.awssdk:checksums-spi
 * Maven group:artifact IDs: software.amazon.awssdk:crt-core
+* Maven group:artifact IDs: software.amazon.awssdk:dynamodb
 * Maven group:artifact IDs: software.amazon.awssdk:endpoints-spi
 * Maven group:artifact IDs: software.amazon.awssdk:http-auth
 * Maven group:artifact IDs: software.amazon.awssdk:http-auth-aws
@@ -1678,6 +1816,7 @@ This product bundles AWS SDK for Java.
 * Maven group:artifact IDs: software.amazon.awssdk:third-party-jackson-core
 * Maven group:artifact IDs: software.amazon.awssdk:utils
 * Maven group:artifact IDs: software.amazon.awssdk:utils-lite
+* Maven group:artifact IDs: software.amazon.awssdk:url-connection-client
 
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt

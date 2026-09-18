@@ -51,10 +51,34 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-mongodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-jdbc")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-jdbc-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-rocksdb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-rocksdb-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-cassandra")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-cassandra-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-bigtable")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-bigtable-quarkus")
+    }
+  }
+  runtimeOnly(project(":polaris-persistence-nosql-dynamodb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-dynamodb-quarkus")
+    }
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 
-  implementation("io.quarkus:quarkus-jdbc-postgresql")
   implementation(enforcedPlatform(libs.quarkus.bom))
   implementation("io.quarkus:quarkus-picocli")
   implementation("io.quarkus:quarkus-container-image-docker")
