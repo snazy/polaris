@@ -40,6 +40,7 @@ Polaris supports the following metastore implementations and persistence backend
 | DynamoDB (NoSQL)  | `nosql`           | Experimental  | Data is stored in Amazon DynamoDB.                                                              |
 | Bigtable (NoSQL)  | `nosql`           | Experimental  | Data is stored in Google Cloud Bigtable.                                                        |
 | RocksDB (NoSQL)   | `nosql`           | Experimental  | Data is stored in a local RocksDB database.                                                     |
+| JDBC (NoSQL)      | `nosql`           | Experimental  | Data is stored through a Quarkus-managed JDBC datasource.                                       |
 
 {{< alert warning >}}
 The default `in-memory` backend is **not suitable for production**. Data will be lost when the server restarts!
@@ -53,3 +54,4 @@ This section explains how to configure and use Polaris with the following backen
 - [NoSQL DynamoDB](nosql-dynamodb)
 - [NoSQL Bigtable](nosql-bigtable)
 - [NoSQL RocksDB](nosql-rocksdb)
+- [NoSQL JDBC](nosql-jdbc)

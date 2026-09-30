@@ -22,6 +22,7 @@ import org.gradle.api.component.AdhocComponentWithVariants
 plugins {
   id("org.kordamp.gradle.jandex")
   id("polaris-server")
+  id("polaris-server-test-runner")
 }
 
 val quarkusRuntimeOnly =
@@ -44,7 +45,20 @@ val quarkusRuntimeElements =
   quarkusRuntimeElements.get()
 ) {}
 
+val jdbcStartupAction = sourceSets.create("jdbcStartupAction")
+val jdbcStartupActionCompileOnly =
+  configurations.getByName(jdbcStartupAction.compileOnlyConfigurationName)
+val jdbcStartupActionImplementation =
+  configurations.getByName(jdbcStartupAction.implementationConfigurationName)
+
 dependencies {
+  polarisServer(project(path = ":polaris-server", configuration = "quarkusRunner"))
+  jdbcStartupActionCompileOnly("org.apache.polaris.server-test-runner:polaris-server-test-runner")
+  jdbcStartupActionImplementation(testFixtures(project()))
+  jdbcStartupActionImplementation(project(":polaris-container-spec-helper"))
+  jdbcStartupActionImplementation(platform(libs.testcontainers.bom))
+  jdbcStartupActionImplementation("org.testcontainers:testcontainers-postgresql")
+
   implementation(project(":polaris-persistence-nosql-api"))
   implementation(project(":polaris-persistence-nosql-impl"))
   implementation(project(":polaris-idgen-api"))
@@ -106,6 +120,30 @@ dependencies {
 
 testing {
   suites {
+    register<JvmTestSuite>("serverIntTest") {
+      dependencies {
+        implementation(platform(libs.quarkus.bom))
+        implementation("io.rest-assured:rest-assured")
+        runtimeOnly("org.slf4j:jcl-over-slf4j:${libs.slf4j.api.get().version}")
+      }
+      targets {
+        all {
+          val buildDir = project.layout.buildDirectory
+          testTask.configure {
+            withPolarisServer(configurations.polarisServer) {
+              startupActionClasspath.from(jdbcStartupAction.runtimeClasspath)
+              startupActionClass.set("org.apache.polaris.persistence.nosql.jdbc.JdbcStartupAction")
+              environment.put("POLARIS_BOOTSTRAP_CREDENTIALS", "POLARIS,test-admin,test-secret")
+              systemProperties.put(
+                "quarkus.log.file.path",
+                buildDir.get().asFile.resolve("logs/serverIntTest/polaris.log").absolutePath,
+              )
+              systemProperties.put("polaris.readiness.ignore-severe-issues", "true")
+            }
+          }
+        }
+      }
+    }
     register<JvmTestSuite>("intTest") {
       dependencies {
         compileOnly(platform(libs.jackson3.bom))
