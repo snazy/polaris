@@ -52,6 +52,7 @@ var dbs =
     "inmemory" to listOf("InMemory"),
     "mongodb" to listOf("MongoDb"),
     "cassandra" to listOf("Cassandra"),
+    "rocksdb" to listOf("RocksDb"),
   )
 
 tasks.register<Test>("intTest") {
