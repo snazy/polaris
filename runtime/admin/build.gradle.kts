@@ -62,6 +62,12 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-dynamodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-bigtable")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-bigtable-quarkus")
+    }
+    exclude("org.graalvm.sdk", "nativeimage")
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 

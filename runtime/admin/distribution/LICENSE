@@ -298,6 +298,7 @@ This product bundles Quarkus.
 * Maven group:artifact IDs: io.quarkus:quarkus-development-mode-spi
 * Maven group:artifact IDs: io.quarkus:quarkus-devservices
 * Maven group:artifact IDs: io.quarkus:quarkus-fs-util
+* Maven group:artifact IDs: io.quarkus:quarkus-grpc-common
 * Maven group:artifact IDs: io.quarkus:quarkus-jdbc-postgresql
 * Maven group:artifact IDs: io.quarkus:quarkus-jsonp
 * Maven group:artifact IDs: io.quarkus:quarkus-micrometer
@@ -362,6 +363,16 @@ This product bundles several SmallRye project artifacts.
 * Maven group:artifact IDs: io.smallrye:smallrye-fault-tolerance-vertx
 
 Project URL: https://smallrye.io/
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Quarkus Google Cloud Services.
+
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-bigtable
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common
+* Maven group:artifact IDs: io.quarkiverse.googlecloudservices:quarkus-google-cloud-common-grpc
+
 License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -673,6 +684,17 @@ License: BSD 3-Clause
 | THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 | (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 | OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud Bigtable APIs.
+
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-admin-v2
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-bigtable-v2
+* Maven group:artifact IDs: com.google.cloud:google-cloud-bigtable
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
@@ -1004,6 +1026,7 @@ This product bundles gRPC.
 * Maven group:artifact IDs: io.grpc:grpc-googleapis
 * Maven group:artifact IDs: io.grpc:grpc-grpclb
 * Maven group:artifact IDs: io.grpc:grpc-inprocess
+* Maven group:artifact IDs: io.grpc:grpc-netty
 * Maven group:artifact IDs: io.grpc:grpc-netty-shaded
 * Maven group:artifact IDs: io.grpc:grpc-opentelemetry
 * Maven group:artifact IDs: io.grpc:grpc-protobuf
@@ -1121,6 +1144,10 @@ This product bundles VertX.
 * Maven group:artifact IDs: io.vertx:vertx-bridge-common
 * Maven group:artifact IDs: io.vertx:vertx-codegen
 * Maven group:artifact IDs: io.vertx:vertx-core
+* Maven group:artifact IDs: io.vertx:vertx-grpc
+* Maven group:artifact IDs: io.vertx:vertx-grpc-client
+* Maven group:artifact IDs: io.vertx:vertx-grpc-common
+* Maven group:artifact IDs: io.vertx:vertx-grpc-server
 * Maven group:artifact IDs: io.vertx:vertx-uri-template
 * Maven group:artifact IDs: io.vertx:vertx-web
 * Maven group:artifact IDs: io.vertx:vertx-web-common
@@ -1967,5 +1994,14 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Zstd JNI.
+
+* Maven group:artifact IDs: com.github.luben:zstd-jni
+
+Project URL: https://github.com/luben/zstd-jni
+License: BSD 2-Clause - https://opensource.org/license/bsd-2-clause
 
 --------------------------------------------------------------------------------
