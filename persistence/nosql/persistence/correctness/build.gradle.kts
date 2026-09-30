@@ -47,7 +47,14 @@ dependencies {
 
 // Map of `:polaris-persistence-*` projects implementing the database specific parts to the list of
 // test-backend names to be exercised.
-var dbs = mapOf("inmemory" to listOf("InMemory"), "mongodb" to listOf("MongoDb"))
+var dbs =
+  mapOf(
+    "inmemory" to listOf("InMemory"),
+    "mongodb" to listOf("MongoDb"),
+    "cassandra" to listOf("Cassandra"),
+    // BigTable + DynamoDB not included here, because that would run against a simulator,
+    // not production database code.
+  )
 
 tasks.register<Test>("intTest") {
   description = "Runs all integration tests."
