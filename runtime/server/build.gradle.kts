@@ -47,6 +47,12 @@ dependencies {
     }
   }
 
+  runtimeOnly(project(":polaris-persistence-nosql-bigtable")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-bigtable-quarkus")
+    }
+  }
+
   runtimeOnly("org.postgresql:postgresql")
   runtimeOnly(project(":polaris-relational-jdbc"))
   runtimeOnly("io.quarkus:quarkus-jdbc-postgresql")
