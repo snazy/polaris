@@ -51,6 +51,12 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-mongodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-cassandra")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-cassandra-quarkus")
+    }
+    exclude("io.quarkus", "quarkus-smallrye-health")
+  }
   runtimeOnly(project(":polaris-persistence-nosql-dynamodb")) {
     capabilities {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-dynamodb-quarkus")
