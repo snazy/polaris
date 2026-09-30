@@ -52,6 +52,7 @@ var dbs =
     "inmemory" to listOf("InMemory"),
     "mongodb" to listOf("MongoDb"),
     "cassandra" to listOf("Cassandra"),
+    "rocksdb" to listOf("RocksDb"),
     // BigTable + DynamoDB not included here, because that would run against a simulator,
     // not production database code.
   )
