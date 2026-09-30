@@ -29,13 +29,14 @@ A metastore is the persistence backend that stores and manages catalog metadata.
 - Polaris [RBAC data](../managing-security/access-control): authorization and access control information (when using the built-in authorizer).
 - Polaris [policies](../policy): policy configurations for data governance and security.
 
-Polaris supports three metastore implementations and persistence backends:
+Polaris supports the following metastore implementations and persistence backends:
 
 | Backend           | Type              | Support Level | Description                                                                                     |
 |-------------------|-------------------|---------------|-------------------------------------------------------------------------------------------------|
 | In-Memory         | `in-memory`       | Test only     | Data is stored in memory and lost when pods restart. Suitable for development and testing only. |
 | PostgreSQL (JDBC) | `relational-jdbc` | Ready to use  | Data is stored in a PostgreSQL database using JDBC. Recommended for production.                 |
 | MongoDB (NoSQL)   | `nosql`           | Experimental  | Data is stored in a MongoDB database. Currently in beta.                                        |
+| DynamoDB (NoSQL)  | `nosql`           | Experimental  | Data is stored in Amazon DynamoDB.                                                              |
 
 {{< alert warning >}}
 The default `in-memory` backend is **not suitable for production**. Data will be lost when the server restarts!
@@ -45,3 +46,4 @@ This section explains how to configure and use Polaris with the following backen
 
 - [Relational JDBC](relational-jdbc)
 - [NoSQL MongoDB](nosql-mongodb)
+- [NoSQL DynamoDB](nosql-dynamodb)
