@@ -37,6 +37,7 @@ Polaris supports the following metastore implementations and persistence backend
 | PostgreSQL (JDBC) | `relational-jdbc` | Ready to use  | Data is stored in a PostgreSQL database using JDBC. Recommended for production.                 |
 | MongoDB (NoSQL)   | `nosql`           | Experimental  | Data is stored in a MongoDB database. Currently in beta.                                        |
 | Cassandra (NoSQL) | `nosql`           | Experimental  | Data is stored in Apache Cassandra.                                                             |
+| DynamoDB (NoSQL)  | `nosql`           | Experimental  | Data is stored in Amazon DynamoDB.                                                              |
 
 {{< alert warning >}}
 The default `in-memory` backend is **not suitable for production**. Data will be lost when the server restarts!
@@ -47,3 +48,4 @@ This section explains how to configure and use Polaris with the following backen
 - [Relational JDBC](relational-jdbc)
 - [NoSQL MongoDB](nosql-mongodb)
 - [NoSQL Cassandra](nosql-cassandra)
+- [NoSQL DynamoDB](nosql-dynamodb)
