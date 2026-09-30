@@ -53,6 +53,7 @@ var dbs =
     "mongodb" to listOf("MongoDb"),
     "cassandra" to listOf("Cassandra"),
     "rocksdb" to listOf("RocksDb"),
+    "jdbc" to listOf("JDBC-H2", "JDBC-MariaDB", "JDBC-MySQL", "JDBC-Postgres"),
     // BigTable + DynamoDB not included here, because that would run against a simulator,
     // not production database code.
   )
