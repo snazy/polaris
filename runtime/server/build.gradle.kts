@@ -53,6 +53,12 @@ dependencies {
     }
   }
 
+  runtimeOnly(project(":polaris-persistence-nosql-rocksdb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-rocksdb-quarkus")
+    }
+  }
+
   runtimeOnly("org.postgresql:postgresql")
   runtimeOnly(project(":polaris-relational-jdbc"))
   runtimeOnly("io.quarkus:quarkus-jdbc-postgresql")
