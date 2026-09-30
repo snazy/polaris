@@ -42,6 +42,7 @@ val genProjectPaths = listOf(
   ":polaris-persistence-nosql-mongodb",
   ":polaris-persistence-nosql-cassandra",
   ":polaris-persistence-nosql-dynamodb",
+  ":polaris-persistence-nosql-bigtable",
   ":polaris-runtime-common",
   ":polaris-runtime-service",
 )
