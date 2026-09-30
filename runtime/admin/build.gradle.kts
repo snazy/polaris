@@ -68,6 +68,11 @@ dependencies {
     }
     exclude("org.graalvm.sdk", "nativeimage")
   }
+  runtimeOnly(project(":polaris-persistence-nosql-rocksdb")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-rocksdb-quarkus")
+    }
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 
