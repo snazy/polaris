@@ -86,6 +86,7 @@ dependencies {
     api(project(":polaris-persistence-nosql-mongodb"))
     api(project(":polaris-persistence-nosql-dynamodb"))
     api(project(":polaris-persistence-nosql-cassandra"))
+    api(project(":polaris-persistence-nosql-bigtable"))
 
     api(project(":polaris-persistence-nosql-maintenance-api"))
     api(project(":polaris-persistence-nosql-maintenance-impl"))
