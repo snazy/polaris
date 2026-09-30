@@ -2658,6 +2658,14 @@ License: MIT License - https://opensource.org/license/mit
 
 --------------------------------------------------------------------------------
 
+This product bundles RocksDB JNI.
+
+* Maven group:artifact IDs: org.rocksdb:rocksdbjni
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 This product bundles Zstd JNI.
 
 * Maven group:artifact IDs: com.github.luben:zstd-jni
