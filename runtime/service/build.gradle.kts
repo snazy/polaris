@@ -54,6 +54,11 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-mongodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-cassandra")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-cassandra-quarkus")
+    }
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 
@@ -168,6 +173,9 @@ dependencies {
 
   testImplementation(platform(libs.testcontainers.bom))
   testImplementation("org.testcontainers:testcontainers")
+  testImplementation("org.testcontainers:testcontainers-cassandra")
+  testImplementation(platform(libs.cassandra.driver.bom))
+  testImplementation("org.apache.cassandra:java-driver-core")
   testImplementation("org.testcontainers:testcontainers-postgresql")
   testImplementation(project(":polaris-floci-aws-testcontainer"))
   testImplementation(project(":polaris-floci-az-testcontainer"))
@@ -187,6 +195,8 @@ dependencies {
   testImplementation(project(":polaris-persistence-nosql-api"))
   testImplementation(testFixtures(project(":polaris-persistence-nosql-api")))
   testImplementation(project(":polaris-persistence-nosql-impl"))
+  testImplementation(project(":polaris-persistence-nosql-cassandra"))
+  testImplementation(testFixtures(project(":polaris-persistence-nosql-cassandra")))
 
   testFixturesImplementation(project(":polaris-core"))
   testFixturesImplementation(project(":polaris-api-management-model"))
