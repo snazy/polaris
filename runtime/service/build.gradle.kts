@@ -64,6 +64,11 @@ dependencies {
       requireCapability("org.apache.polaris:polaris-persistence-nosql-dynamodb-quarkus")
     }
   }
+  runtimeOnly(project(":polaris-persistence-nosql-bigtable")) {
+    capabilities {
+      requireCapability("org.apache.polaris:polaris-persistence-nosql-bigtable-quarkus")
+    }
+  }
   runtimeOnly(project(":polaris-persistence-nosql-maintenance-impl"))
   runtimeOnly(project(":polaris-persistence-nosql-metastore-maintenance"))
 
@@ -202,6 +207,7 @@ dependencies {
   testImplementation(project(":polaris-persistence-nosql-impl"))
   testImplementation(project(":polaris-persistence-nosql-cassandra"))
   testImplementation(testFixtures(project(":polaris-persistence-nosql-cassandra")))
+  testImplementation(testFixtures(project(":polaris-persistence-nosql-bigtable")))
 
   testFixturesImplementation(project(":polaris-core"))
   testFixturesImplementation(project(":polaris-api-management-model"))

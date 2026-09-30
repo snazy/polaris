@@ -38,6 +38,7 @@ Polaris supports the following metastore implementations and persistence backend
 | MongoDB (NoSQL)   | `nosql`           | Experimental  | Data is stored in a MongoDB database. Currently in beta.                                        |
 | Cassandra (NoSQL) | `nosql`           | Experimental  | Data is stored in Apache Cassandra.                                                             |
 | DynamoDB (NoSQL)  | `nosql`           | Experimental  | Data is stored in Amazon DynamoDB.                                                              |
+| Bigtable (NoSQL)  | `nosql`           | Experimental  | Data is stored in Google Cloud Bigtable.                                                        |
 
 {{< alert warning >}}
 The default `in-memory` backend is **not suitable for production**. Data will be lost when the server restarts!
@@ -49,3 +50,4 @@ This section explains how to configure and use Polaris with the following backen
 - [NoSQL MongoDB](nosql-mongodb)
 - [NoSQL Cassandra](nosql-cassandra)
 - [NoSQL DynamoDB](nosql-dynamodb)
+- [NoSQL Bigtable](nosql-bigtable)
