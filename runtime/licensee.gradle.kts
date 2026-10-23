@@ -19,6 +19,7 @@
 
 import org.apache.polaris.gradle.licenses.LicenseChecksExtension
 import org.apache.polaris.gradle.licenses.LicenseChecksPlugin
+import org.apache.polaris.gradle.sbom.configureDistributionSbom
 
 // Keep the wrapper and Licensee on this applied script's classpath. Loading them through the
 // project's plugins block combines Maven/Plexus dependencies with Quarkus and breaks model loading.
@@ -34,4 +35,15 @@ apply<LicenseChecksPlugin>()
 
 extensions.configure<LicenseChecksExtension>("licenseChecks") {
   policyFrom(layout.settingsDirectory.file("gradle/license-policy.json"))
+}
+
+configureDistributionSbom()
+
+// Producer document consumed by the binary-archive adapter through a normal outgoing variant.
+configurations.create("nativeSbomElements") {
+  isCanBeConsumed = true
+  isCanBeResolved = false
+  outgoing.artifact(layout.buildDirectory.file("quarkus-run-cyclonedx.json")) {
+    builtBy("quarkusBuild")
+  }
 }

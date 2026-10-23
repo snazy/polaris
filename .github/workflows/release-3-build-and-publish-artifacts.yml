@@ -168,7 +168,27 @@ jobs:
         run: |
           source "${LIBS_DIR}/_exec.sh"
 
-          exec_process ./gradlew assemble sourceTarball -Prelease -PuseGpgAgent
+          exec_process ./gradlew assemble sourceTarball \
+            :polaris-distribution:assembleDistributionSboms \
+            :polaris-spark-3.5_2.12:signMavenPublication \
+            :polaris-spark-3.5_2.13:signMavenPublication \
+            :polaris-spark-4.0_2.13:signMavenPublication \
+            -Prelease -PuseGpgAgent
+
+          # Stage the same finalized Spark documents that are attached to Maven publications.
+          for variant in 3.5_2.12 3.5_2.13 4.0_2.13; do
+            spark_version=${variant%_*}
+            scala_version=${variant#*_}
+            sbom="plugins/spark/v${spark_version}/spark/build/${scala_version}/reports/sbom/polaris-spark-${variant}-${version_without_rc}-bundle.jar.cdx.json"
+            exec_process cp "$sbom" "${sbom}.asc" runtime/distribution/build/distributions/
+          done
+          (
+            exec_process cd runtime/distribution/build/distributions
+            for variant in 3.5_2.12 3.5_2.13 4.0_2.13; do
+              sbom="polaris-spark-${variant}-${version_without_rc}-bundle.jar.cdx.json"
+              exec_process sha512sum "$sbom" > "${sbom}.sha512"
+            done
+          )
 
           cat <<EOT >> $GITHUB_STEP_SUMMARY
           ## Build

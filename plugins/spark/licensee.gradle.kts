@@ -20,6 +20,7 @@
 import org.apache.polaris.gradle.licenses.LicenseChecksExtension
 import org.apache.polaris.gradle.licenses.LicenseChecksPlugin
 import org.apache.polaris.gradle.licenses.VerifyDistributionAttribution
+import org.apache.polaris.gradle.sbom.configureDistributionSbom
 
 // Keep Licensee separate from the application/build-logic plugin classpath.
 buildscript {
@@ -62,3 +63,5 @@ tasks.withType<AbstractArchiveTask>().configureEach {
     finalizedBy(checks)
   }
 }
+
+configureDistributionSbom()
