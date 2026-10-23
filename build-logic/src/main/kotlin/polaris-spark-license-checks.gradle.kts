@@ -44,3 +44,46 @@ tasks.register<GenerateShadowLicenseInventory>("generateLicenseInventory") {
   )
   inventory.set(layout.buildDirectory.file("reports/licensee/shadow-inputs.json"))
 }
+
+val shadowJar = providers.provider { tasks.named<ShadowJar>("createPolarisSparkJar").get() }
+
+extra["sbomShadow"] =
+  mapOf(
+    "selected" to
+      shadowJar.map {
+        it.includedDependencies
+      },
+    "archive" to
+      shadowJar.flatMap {
+        it.archiveFile
+      },
+    "minimized" to
+      shadowJar.flatMap {
+        it.minimizeJar
+      },
+    "metadata" to
+      shadowJar
+        .flatMap { it.configurations }
+        .map { configurations ->
+          configurations
+            .flatMap { it.resolvedConfiguration.resolvedArtifacts }
+            .groupBy { it.file.absolutePath }
+            .mapValues { (path, values) ->
+              val metadata =
+                values
+                  .map { artifact ->
+                    val id = artifact.moduleVersion.id
+                    mapOf(
+                      "group" to id.group,
+                      "name" to id.name,
+                      "version" to id.version,
+                      "classifier" to artifact.classifier.orEmpty(),
+                      "type" to artifact.type,
+                    )
+                  }
+                  .distinct()
+              require(metadata.size == 1) { "Ambiguous Shadow SBOM input: $path" }
+              metadata.single()
+            }
+        },
+  )
