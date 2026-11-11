@@ -84,6 +84,7 @@ dependencies {
   testFixturesAnnotationProcessor(project(":polaris-immutables", configuration = "processor"))
 
   testFixturesImplementation(project(":polaris-idgen-api"))
+  testFixturesImplementation(project(":polaris-persistence-nosql-varint"))
   testFixturesImplementation(libs.guava)
 
   testFixturesImplementation(libs.junit.pioneer)
