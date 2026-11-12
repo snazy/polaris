@@ -45,15 +45,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class TestIndexReadPrototypes {
   @ParameterizedTest
-  @ValueSource(strings = {"CHECKPOINT", "COMPACT"})
+  @ValueSource(strings = {"CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED"})
   void memoizesValuesAcrossPointReadsAndIteratorsWithinEachView(String variant) {
-    var data = PrototypeIndexData.create(33, "HIERARCHICAL");
+    var data = PrototypeIndexData.create(129, "HIERARCHICAL");
     var codec = new CountingSerializer();
     Object prepared = requireNonNull(data.prepare(variant, 16));
-    IndexSpi<ObjRef> view =
-        variant.equals("CHECKPOINT")
-            ? new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec)
-            : new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+    var view = data.fromPrepared(variant, prepared, codec, 16);
     var key = data.keys().get(1);
     assertThat(view.contains(key)).isTrue();
     var first = view.iterator().next();
@@ -74,12 +71,17 @@ class TestIndexReadPrototypes {
     assertThat(view.get(tombstone)).isNull();
     assertThat(codec.decodes).isEqualTo(2);
 
-    IndexSpi<ObjRef> independent =
-        variant.equals("CHECKPOINT")
-            ? new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec)
-            : new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+    var independent = data.fromPrepared(variant, prepared, codec, 16);
     assertThat(independent.get(key)).isEqualTo(value).isNotSameAs(value);
     assertThat(codec.decodes).isEqualTo(3);
+    // Reuse across page boundaries and a one-entry final page.
+    for (int ordinal : new int[] {63, 64, 65, 127, 128}) {
+      var boundary = data.keys().get(ordinal);
+      var decoded = view.get(boundary);
+      assertThat(view.get(boundary)).isSameAs(decoded);
+      assertThat(view.iterator(boundary, null, false).next().value()).isSameAs(decoded);
+    }
+    assertThat(codec.decodes).isEqualTo(8);
   }
 
   private static final class CountingSerializer implements IndexValueSerializer<ObjRef> {
@@ -113,7 +115,7 @@ class TestIndexReadPrototypes {
   }
 
   static Stream<Arguments> variants() {
-    return Stream.of("CHECKPOINT", "COMPACT")
+    return Stream.of("CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED")
         .flatMap(
             variant ->
                 Stream.of("HIERARCHICAL", "UUID", "BINARY")
@@ -207,7 +209,7 @@ class TestIndexReadPrototypes {
     }
     assertThat(checkpoint.directory.complete).isFalse();
     var expected = collect(data.fresh("BASELINE", 64), null, null, false, Integer.MAX_VALUE);
-    for (String variant : List.of("CHECKPOINT", "COMPACT")) {
+    for (String variant : List.of("CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED")) {
       Object layout = data.prepare(variant, 64);
       var sharedView = data.fromPrepared(variant, layout, 64);
       long metadataBytes = ((IndexReadPrototype<?>) sharedView).metadataBytes();
@@ -231,7 +233,7 @@ class TestIndexReadPrototypes {
   void concurrentColdReadersKeepIndependentProgressAndValues() throws Exception {
     var data = PrototypeIndexData.create(1000, "BINARY");
     var baseline = data.fresh("BASELINE", 64);
-    for (String variant : List.of("CHECKPOINT", "COMPACT")) {
+    for (String variant : List.of("CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED")) {
       var candidate = data.fresh(variant, 64);
       try (var executor = Executors.newFixedThreadPool(2)) {
         List<Callable<ObjRef>> jobs = new ArrayList<>();
@@ -257,7 +259,7 @@ class TestIndexReadPrototypes {
           indexElement(
               data.keys().get(i), i % 7 == 0 ? null : data.keys().get(data.keys().size() - i - 1)));
     var bytes = source.serialize();
-    for (String variant : List.of("CHECKPOINT", "COMPACT")) {
+    for (String variant : List.of("CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED")) {
       for (String kind : List.of("HEAP", "SLICE", "READ_ONLY", "DIRECT")) {
         var padded =
             kind.equals("DIRECT")
@@ -297,7 +299,7 @@ class TestIndexReadPrototypes {
     var bytes = source.serialize();
     var data = new PrototypeIndexData(bytes, keys);
     var expected = collect(source, null, null, false, Integer.MAX_VALUE);
-    for (String variant : List.of("CHECKPOINT", "COMPACT")) {
+    for (String variant : List.of("CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED")) {
       var candidate = data.fresh(variant, 2);
       for (var key : keys) assertThat(candidate.get(key)).isEqualTo(source.get(key));
       assertThat(collect(candidate, null, null, false, Integer.MAX_VALUE)).isEqualTo(expected);

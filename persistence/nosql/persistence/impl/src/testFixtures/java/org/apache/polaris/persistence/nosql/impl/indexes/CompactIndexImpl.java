@@ -45,7 +45,11 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   private final Map<Integer, IndexKey> searchKeys = new ConcurrentHashMap<>();
 
   CompactIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer) {
-    super(source, serializer);
+    this(source, serializer, false);
+  }
+
+  CompactIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer, boolean pagedValues) {
+    super(source, serializer, pagedValues);
     int[] entries = new int[Math.multiplyExact(count, STRIDE)];
     var scan = this.source.duplicate().position(bodyOffset);
     int previousLength = 0;
@@ -80,7 +84,11 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   }
 
   CompactIndexImpl(Layout layout, IndexValueSerializer<V> serializer) {
-    super(layout.source, serializer);
+    this(layout, serializer, false);
+  }
+
+  CompactIndexImpl(Layout layout, IndexValueSerializer<V> serializer, boolean pagedValues) {
+    super(layout.source, serializer, pagedValues);
     this.layout = layout;
   }
 

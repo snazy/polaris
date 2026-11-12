@@ -43,11 +43,14 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
   final int bodyOffset;
   private static final VarHandle ARRAY_ELEMENT =
       MethodHandles.arrayElementVarHandle(Object[].class);
-  // Ordinals identify immutable entries. Decoded values belong to this view, not its shared layout.
+  private static final int PAGE_SHIFT = 6;
+  private static final int PAGE_SIZE = 1 << PAGE_SHIFT;
+  // Flat slots or page references. Decoded values belong to this view, not its shared layout.
   private final Object[] values;
+  private final boolean pagedValues;
   private ObjRef objRef;
 
-  IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer) {
+  IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer, boolean pagedValues) {
     source = bytes.slice().asReadOnlyBuffer();
     this.serializer = serializer;
     var header = source.duplicate();
@@ -55,7 +58,9 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     count = readVarInt(header);
     checkArgument(count >= 0, "Negative entry count");
     bodyOffset = header.position();
-    values = new Object[count];
+    this.pagedValues = pagedValues;
+    values =
+        new Object[pagedValues ? (int) (((long) count + PAGE_SIZE - 1) >>> PAGE_SHIFT) : count];
   }
 
   abstract InternalIndexElement<V> entryAt(int ordinal);
@@ -215,7 +220,20 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     };
   }
 
+  private Object[] valuePage(int ordinal, boolean create) {
+    if (!pagedValues) return values;
+    int pageIndex = ordinal >>> PAGE_SHIFT;
+    var page = (Object[]) ARRAY_ELEMENT.getVolatile(values, pageIndex);
+    if (page == null && create) {
+      page = new Object[PAGE_SIZE];
+      var existing = (Object[]) ARRAY_ELEMENT.compareAndExchange(values, pageIndex, null, page);
+      if (existing != null) page = existing;
+    }
+    return page;
+  }
+
   final InternalIndexElement<V> element(IndexKey key, int ordinal, int valueOffset, int endOffset) {
+    int slot = pagedValues ? ordinal & (PAGE_SIZE - 1) : ordinal;
     return new AbstractIndexElement<>() {
       private volatile Object state = UNREAD;
 
@@ -228,7 +246,8 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       public boolean hasValue() {
         var value = state;
         if (value == UNREAD) {
-          value = ARRAY_ELEMENT.getVolatile(values, ordinal);
+          var page = valuePage(ordinal, false);
+          value = page == null ? UNREAD : ARRAY_ELEMENT.getVolatile(page, slot);
           if (value == null) value = UNREAD;
         }
         return value == UNREAD ? !serializer.isNullSerialized(valueBuffer()) : value != NULL;
@@ -238,11 +257,12 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       public V valueNullable() {
         var value = state;
         if (value == UNREAD) {
-          value = ARRAY_ELEMENT.getVolatile(values, ordinal);
+          var page = valuePage(ordinal, true);
+          value = ARRAY_ELEMENT.getVolatile(page, slot);
           if (value == null) {
             V decoded = serializer.deserialize(valueBuffer());
             value = decoded == null ? NULL : decoded;
-            var existing = ARRAY_ELEMENT.compareAndExchange(values, ordinal, null, value);
+            var existing = ARRAY_ELEMENT.compareAndExchange(page, slot, null, value);
             if (existing != null) value = existing;
           }
           state = value;

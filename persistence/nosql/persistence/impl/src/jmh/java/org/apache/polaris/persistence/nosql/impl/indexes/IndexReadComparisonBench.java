@@ -48,7 +48,7 @@ import org.openjdk.jmh.infra.Blackhole;
 public class IndexReadComparisonBench {
   @State(Scope.Thread)
   public static class Data {
-    @Param({"BASELINE", "CHECKPOINT", "COMPACT"})
+    @Param({"BASELINE", "CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED"})
     public String variant;
 
     @Param({"1000", "5000"})
