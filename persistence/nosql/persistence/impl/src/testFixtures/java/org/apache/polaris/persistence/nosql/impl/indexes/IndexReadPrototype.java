@@ -28,6 +28,7 @@ import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
 import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
@@ -39,6 +40,9 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
   final IndexValueSerializer<V> serializer;
   final int count;
   final int bodyOffset;
+  // Value offsets identify entries in this immutable snapshot. Never share decoded values with
+  // prepared directories/layouts; retain only values actually requested through this view.
+  private final ConcurrentHashMap<Integer, Object> values = new ConcurrentHashMap<>();
   private ObjRef objRef;
 
   IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer) {
@@ -220,6 +224,7 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       @Override
       public boolean hasValue() {
         var value = state;
+        if (value == UNREAD) value = values.getOrDefault(valueOffset, UNREAD);
         return value == UNREAD ? !serializer.isNullSerialized(valueBuffer()) : value != NULL;
       }
 
@@ -227,9 +232,14 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       public V valueNullable() {
         var value = state;
         if (value == UNREAD) {
-          V decoded = serializer.deserialize(valueBuffer());
-          state = decoded == null ? NULL : decoded;
-          return decoded;
+          value = values.get(valueOffset);
+          if (value == null) {
+            V decoded = serializer.deserialize(valueBuffer());
+            value = decoded == null ? NULL : decoded;
+            var existing = values.putIfAbsent(valueOffset, value);
+            if (existing != null) value = existing;
+          }
+          state = value;
         }
         return value == NULL ? null : cast(value);
       }

@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.nosql.api.index.IndexKey.INDEX_KEY_SERIALIZER;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.OBJ_REF_SERIALIZER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.indexElement;
@@ -32,13 +33,85 @@ import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import org.apache.polaris.persistence.nosql.api.index.Index;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
+import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestIndexReadPrototypes {
+  @ParameterizedTest
+  @ValueSource(strings = {"CHECKPOINT", "COMPACT"})
+  void memoizesValuesAcrossPointReadsAndIteratorsWithinEachView(String variant) {
+    var data = PrototypeIndexData.create(33, "HIERARCHICAL");
+    var codec = new CountingSerializer();
+    Object prepared = requireNonNull(data.prepare(variant, 16));
+    IndexSpi<ObjRef> view =
+        variant.equals("CHECKPOINT")
+            ? new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec)
+            : new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+    var key = data.keys().get(1);
+    assertThat(view.contains(key)).isTrue();
+    var first = view.iterator().next();
+    assertThat(first.key()).isEqualTo(key);
+    assertThat(codec.decodes).isZero();
+    var value = first.value();
+    assertThat(first.value()).isSameAs(value);
+    assertThat(view.get(key)).isSameAs(value);
+    assertThat(view.iterator(key, null, false).next().value()).isSameAs(value);
+    assertThat(view.reverseIterator(null, key, false).next().value()).isSameAs(value);
+    assertThat(codec.decodes).isEqualTo(1);
+
+    // Null values also belong to the memo, while presence-only checks never decode them.
+    var tombstone = data.keys().getFirst();
+    assertThat(view.contains(tombstone)).isFalse();
+    assertThat(codec.decodes).isEqualTo(1);
+    assertThat(view.get(tombstone)).isNull();
+    assertThat(view.get(tombstone)).isNull();
+    assertThat(codec.decodes).isEqualTo(2);
+
+    IndexSpi<ObjRef> independent =
+        variant.equals("CHECKPOINT")
+            ? new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec)
+            : new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+    assertThat(independent.get(key)).isEqualTo(value).isNotSameAs(value);
+    assertThat(codec.decodes).isEqualTo(3);
+  }
+
+  private static final class CountingSerializer implements IndexValueSerializer<ObjRef> {
+    int decodes;
+
+    @Override
+    public int serializedSize(@Nullable ObjRef value) {
+      return OBJ_REF_SERIALIZER.serializedSize(value);
+    }
+
+    @Override
+    public @NonNull ByteBuffer serialize(@Nullable ObjRef value, @NonNull ByteBuffer target) {
+      return OBJ_REF_SERIALIZER.serialize(value, target);
+    }
+
+    @Override
+    public @Nullable ObjRef deserialize(@NonNull ByteBuffer buffer) {
+      decodes++;
+      return OBJ_REF_SERIALIZER.deserialize(buffer);
+    }
+
+    @Override
+    public boolean isNullSerialized(@NonNull ByteBuffer buffer) {
+      return OBJ_REF_SERIALIZER.isNullSerialized(buffer);
+    }
+
+    @Override
+    public void skip(@NonNull ByteBuffer buffer) {
+      OBJ_REF_SERIALIZER.skip(buffer);
+    }
+  }
+
   static Stream<Arguments> variants() {
     return Stream.of("CHECKPOINT", "COMPACT")
         .flatMap(
