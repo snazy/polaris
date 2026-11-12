@@ -149,7 +149,10 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     checkArgument(ordinal >= 0 && ordinal < count, "Invalid ordinal");
     int offset = ordinal * STRIDE;
     return element(
-        keyAt(ordinal, false), layout.entries[offset + VALUE], layout.entries[offset + END]);
+        keyAt(ordinal, false),
+        ordinal,
+        layout.entries[offset + VALUE],
+        layout.entries[offset + END]);
   }
 
   @Override
@@ -185,6 +188,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
         next++;
         return element(
             requireNonNull(IndexKey.deserializeKey(ByteBuffer.wrap(keyBytes, 0, length))),
+            next - 1,
             value,
             layout.entries[offset + END]);
       }
