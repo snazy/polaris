@@ -65,7 +65,9 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
     return switch (variant) {
       case "BASELINE" -> IndexImpl.deserializeStoreIndex(bytes.slice(), codec);
       case "CHECKPOINT" -> new CheckpointIndexImpl<>(bytes, codec, interval);
+      case "CHECKPOINT_PAGED" -> new CheckpointIndexImpl<>(bytes, codec, interval, true);
       case "COMPACT" -> new CompactIndexImpl<>(bytes, codec);
+      case "COMPACT_PAGED" -> new CompactIndexImpl<>(bytes, codec, true);
       default -> throw new IllegalArgumentException(variant);
     };
   }
@@ -77,20 +79,31 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
   Object prepare(String variant, int interval) {
     return switch (variant) {
       case "BASELINE" -> null;
-      case "CHECKPOINT" ->
-          new CheckpointIndexImpl<>(serialized, OBJ_REF_SERIALIZER, interval).prepare();
-      case "COMPACT" -> new CompactIndexImpl<>(serialized, OBJ_REF_SERIALIZER).layout;
+      case "CHECKPOINT", "CHECKPOINT_PAGED" ->
+          new CheckpointIndexImpl<>(
+                  serialized, OBJ_REF_SERIALIZER, interval, variant.endsWith("_PAGED"))
+              .prepare();
+      case "COMPACT", "COMPACT_PAGED" ->
+          new CompactIndexImpl<>(serialized, OBJ_REF_SERIALIZER, variant.endsWith("_PAGED")).layout;
       default -> throw new IllegalArgumentException(variant);
     };
   }
 
   IndexSpi<ObjRef> fromPrepared(String variant, Object prepared, int interval) {
+    return fromPrepared(variant, prepared, OBJ_REF_SERIALIZER, interval);
+  }
+
+  <V> IndexSpi<V> fromPrepared(
+      String variant, Object prepared, IndexValueSerializer<V> codec, int interval) {
     return switch (variant) {
-      case "BASELINE" -> fresh(variant, interval);
+      case "BASELINE" -> fresh(variant, serialized, codec, interval);
       case "CHECKPOINT" ->
-          new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, OBJ_REF_SERIALIZER);
-      case "COMPACT" ->
-          new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, OBJ_REF_SERIALIZER);
+          new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec);
+      case "COMPACT" -> new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+      case "CHECKPOINT_PAGED" ->
+          new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec, true);
+      case "COMPACT_PAGED" ->
+          new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec, true);
       default -> throw new IllegalArgumentException(variant);
     };
   }
