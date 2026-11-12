@@ -23,12 +23,13 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
 
 import com.google.common.collect.AbstractIterator;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
 import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
@@ -40,9 +41,10 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
   final IndexValueSerializer<V> serializer;
   final int count;
   final int bodyOffset;
-  // Value offsets identify entries in this immutable snapshot. Never share decoded values with
-  // prepared directories/layouts; retain only values actually requested through this view.
-  private final ConcurrentHashMap<Integer, Object> values = new ConcurrentHashMap<>();
+  private static final VarHandle ARRAY_ELEMENT =
+      MethodHandles.arrayElementVarHandle(Object[].class);
+  // Ordinals identify immutable entries. Decoded values belong to this view, not its shared layout.
+  private final Object[] values;
   private ObjRef objRef;
 
   IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer) {
@@ -53,6 +55,7 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     count = readVarInt(header);
     checkArgument(count >= 0, "Negative entry count");
     bodyOffset = header.position();
+    values = new Object[count];
   }
 
   abstract InternalIndexElement<V> entryAt(int ordinal);
@@ -212,7 +215,7 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     };
   }
 
-  final InternalIndexElement<V> element(IndexKey key, int valueOffset, int endOffset) {
+  final InternalIndexElement<V> element(IndexKey key, int ordinal, int valueOffset, int endOffset) {
     return new AbstractIndexElement<>() {
       private volatile Object state = UNREAD;
 
@@ -224,7 +227,10 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       @Override
       public boolean hasValue() {
         var value = state;
-        if (value == UNREAD) value = values.getOrDefault(valueOffset, UNREAD);
+        if (value == UNREAD) {
+          value = ARRAY_ELEMENT.getVolatile(values, ordinal);
+          if (value == null) value = UNREAD;
+        }
         return value == UNREAD ? !serializer.isNullSerialized(valueBuffer()) : value != NULL;
       }
 
@@ -232,11 +238,11 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       public V valueNullable() {
         var value = state;
         if (value == UNREAD) {
-          value = values.get(valueOffset);
+          value = ARRAY_ELEMENT.getVolatile(values, ordinal);
           if (value == null) {
             V decoded = serializer.deserialize(valueBuffer());
             value = decoded == null ? NULL : decoded;
-            var existing = values.putIfAbsent(valueOffset, value);
+            var existing = ARRAY_ELEMENT.compareAndExchange(values, ordinal, null, value);
             if (existing != null) value = existing;
           }
           state = value;
@@ -326,7 +332,7 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     }
 
     InternalIndexElement<V> element() {
-      return IndexReadPrototype.this.element(key(), valueOffset, endOffset);
+      return IndexReadPrototype.this.element(key(), ordinal, valueOffset, endOffset);
     }
   }
 }
