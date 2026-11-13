@@ -49,7 +49,15 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   }
 
   CompactIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer, boolean pagedValues) {
-    super(source, serializer, pagedValues);
+    this(source, serializer, pagedValues, true);
+  }
+
+  CompactIndexImpl(
+      ByteBuffer source,
+      IndexValueSerializer<V> serializer,
+      boolean pagedValues,
+      boolean memoizeValues) {
+    super(source, serializer, pagedValues, memoizeValues);
     int[] entries = new int[Math.multiplyExact(count, STRIDE)];
     var scan = this.source.duplicate().position(bodyOffset);
     int previousLength = 0;
@@ -88,7 +96,15 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   }
 
   CompactIndexImpl(Layout layout, IndexValueSerializer<V> serializer, boolean pagedValues) {
-    super(layout.source, serializer, pagedValues);
+    this(layout, serializer, pagedValues, true);
+  }
+
+  CompactIndexImpl(
+      Layout layout,
+      IndexValueSerializer<V> serializer,
+      boolean pagedValues,
+      boolean memoizeValues) {
+    super(layout.source, serializer, pagedValues, memoizeValues);
     this.layout = layout;
   }
 
