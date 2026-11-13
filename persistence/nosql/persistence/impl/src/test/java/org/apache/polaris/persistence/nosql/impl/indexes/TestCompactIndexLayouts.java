@@ -49,13 +49,11 @@ class TestCompactIndexLayouts {
 
   static Stream<Arguments> cases() {
     return modes()
-        .flatMap(
-            mode ->
-                Stream.of("HIERARCHICAL", "WORDS")
-                    .flatMap(
-                        shape ->
-                            Stream.of("NONE", "PERIODIC", "BINARY", "MIXED")
-                                .map(encoding -> arguments(mode, shape, encoding))));
+        .flatMap(mode ->
+            Stream.of("HIERARCHICAL", "WORDS")
+                .flatMap(shape ->
+                    Stream.of("NONE", "PERIODIC", "BINARY", "MIXED")
+                        .map(encoding -> arguments(mode, shape, encoding))));
   }
 
   private static PrototypeIndexData fixture(String shape, String encoding) {
@@ -149,16 +147,15 @@ class TestCompactIndexLayouts {
       for (int thread = 0; thread < 8; thread++) {
         int offset = thread * 137;
         futures.add(
-            executor.submit(
-                () -> {
-                  start.await();
-                  for (int i = 0; i < 100; i++) {
-                    int at = (offset + i * 71) % 1025;
-                    assertThat(view.get(data.keys().get(at)))
-                        .isEqualTo(at % 17 == 0 ? null : objRef("value", at + 100L, 1 + at % 3));
-                  }
-                  return null;
-                }));
+            executor.submit(() -> {
+              start.await();
+              for (int i = 0; i < 100; i++) {
+                int at = (offset + i * 71) % 1025;
+                assertThat(view.get(data.keys().get(at)))
+                    .isEqualTo(at % 17 == 0 ? null : objRef("value", at + 100L, 1 + at % 3));
+              }
+              return null;
+            }));
       }
       start.countDown();
       for (var future : futures) future.get(30, TimeUnit.SECONDS);

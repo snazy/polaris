@@ -137,18 +137,13 @@ class TestIndexReadPrototypes {
             "ADAPTIVE_PUBLISHED_DECODED_KEYS",
             "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
             "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")
-        .flatMap(
-            variant ->
-                Stream.of("HIERARCHICAL", "UUID", "BINARY", "WORDS")
-                    .flatMap(
-                        shape ->
-                            Stream.of(0, 1, 33, 257)
-                                .flatMap(
-                                    size ->
-                                        Stream.of(1, 16, 64)
-                                            .map(
-                                                interval ->
-                                                    arguments(variant, shape, size, interval)))));
+        .flatMap(variant ->
+            Stream.of("HIERARCHICAL", "UUID", "BINARY", "WORDS")
+                .flatMap(shape ->
+                    Stream.of(0, 1, 33, 257)
+                        .flatMap(size ->
+                            Stream.of(1, 16, 64)
+                                .map(interval -> arguments(variant, shape, size, interval)))));
   }
 
   @ParameterizedTest
@@ -248,13 +243,12 @@ class TestIndexReadPrototypes {
       try (var executor = Executors.newFixedThreadPool(2)) {
         List<Callable<List<Observed>>> jobs = new ArrayList<>();
         for (int i = 0; i < 8; i++)
-          jobs.add(
-              () -> {
-                var independent = data.fromPrepared(variant, layout, 64);
-                assertThat(sharedView.get(data.keys().get(700)))
-                    .isEqualTo(independent.get(data.keys().get(700)));
-                return collect(independent, null, null, false, Integer.MAX_VALUE);
-              });
+          jobs.add(() -> {
+            var independent = data.fromPrepared(variant, layout, 64);
+            assertThat(sharedView.get(data.keys().get(700)))
+                .isEqualTo(independent.get(data.keys().get(700)));
+            return collect(independent, null, null, false, Integer.MAX_VALUE);
+          });
         for (var future : executor.invokeAll(jobs)) assertThat(future.get()).isEqualTo(expected);
       }
       assertThat(((IndexReadPrototype<?>) sharedView).metadataBytes()).isEqualTo(metadataBytes);
@@ -284,15 +278,14 @@ class TestIndexReadPrototypes {
         List<Callable<ObjRef>> jobs = new ArrayList<>();
         for (int ordinal : new int[] {700, 5, 100, 999, 300, 1, 510, 812}) {
           var key = data.keys().get(ordinal);
-          jobs.add(
-              () -> {
-                start.await();
-                var sharedValue = candidate.get(sharedKey);
-                var value = candidate.get(key);
-                assertThat(value).isEqualTo(baseline.get(key));
-                assertThat(candidate.get(key)).isSameAs(value);
-                return sharedValue;
-              });
+          jobs.add(() -> {
+            start.await();
+            var sharedValue = candidate.get(sharedKey);
+            var value = candidate.get(key);
+            assertThat(value).isEqualTo(baseline.get(key));
+            assertThat(candidate.get(key)).isSameAs(value);
+            return sharedValue;
+          });
         }
         var futures = jobs.stream().map(executor::submit).toList();
         start.countDown();
