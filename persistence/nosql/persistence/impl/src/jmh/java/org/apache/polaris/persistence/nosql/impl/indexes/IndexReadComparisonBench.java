@@ -48,21 +48,7 @@ import org.openjdk.jmh.infra.Blackhole;
 public class IndexReadComparisonBench {
   @State(Scope.Thread)
   public static class Data {
-    @Param({
-      "BASELINE",
-      "CHECKPOINT",
-      "COMPACT",
-      "CHECKPOINT_PAGED",
-      "COMPACT_PAGED",
-      "CHECKPOINT_UNMEMOIZED",
-      "COMPACT_UNMEMOIZED",
-      "OFFSET_PERIODIC",
-      "OFFSET_PERIODIC_PAGED",
-      "OFFSET_PERIODIC_UNMEMOIZED",
-      "OFFSET_BINARY",
-      "OFFSET_BINARY_PAGED",
-      "OFFSET_BINARY_UNMEMOIZED"
-    })
+    @Param({"BASELINE", "CHECKPOINT", "COMPACT", "OFFSET_PERIODIC", "OFFSET_BINARY"})
     public String variant;
 
     @Param({"1000", "5000"})

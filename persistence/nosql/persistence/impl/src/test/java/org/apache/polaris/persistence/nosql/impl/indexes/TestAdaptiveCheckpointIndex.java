@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.OBJ_REF_SERIALIZER;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.objRef;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TestAdaptiveCheckpointIndex {
@@ -51,7 +53,12 @@ class TestAdaptiveCheckpointIndex {
                     .flatMap(
                         shape ->
                             Stream.of("NONE", "PERIODIC", "BINARY", "MIXED")
-                                .map(encoding -> arguments(published, shape, encoding))));
+                                .flatMap(
+                                    encoding ->
+                                        Stream.of(AdaptiveCheckpointIndexImpl.KeyMemo.values())
+                                            .map(
+                                                memo ->
+                                                    arguments(published, shape, encoding, memo)))));
   }
 
   private static PrototypeIndexData fixture(int count, String shape, String encoding) {
@@ -77,11 +84,10 @@ class TestAdaptiveCheckpointIndex {
   @ParameterizedTest
   @MethodSource("modes")
   void checkpointsBoundGapsAndSnapshotsKeepTheirPublishedPrefix(
-      boolean published, String shape, String encoding) {
+      boolean published, String shape, String encoding, AdaptiveCheckpointIndexImpl.KeyMemo memo) {
     var data = fixture(1025, shape, encoding);
     var codec = new CountingSerializer();
-    var view =
-        new AdaptiveCheckpointIndexImpl<>(data.serialized(), codec, 64, published, false, false);
+    var view = new AdaptiveCheckpointIndexImpl<>(data.serialized(), codec, 64, published, memo);
     view.get(data.keys().get(1));
     var early = view.directory();
     var ordinals = Arrays.copyOf(early.ordinals(), early.size());
@@ -116,9 +122,9 @@ class TestAdaptiveCheckpointIndex {
     for (int i : new int[] {1024, 63, 64, 65, 136, 137, 138, 139, 511, 512, 513, 1}) {
       assertThat(view.get(data.keys().get(i))).isEqualTo(original.get(data.keys().get(i)));
     }
-    var independentlyMemoized =
-        new AdaptiveCheckpointIndexImpl<>(complete, OBJ_REF_SERIALIZER, published, true, true);
-    assertThat(independentlyMemoized.get(data.keys().get(700)))
+    var independentView =
+        new AdaptiveCheckpointIndexImpl<>(complete, OBJ_REF_SERIALIZER, published, memo);
+    assertThat(independentView.get(data.keys().get(700)))
         .isEqualTo(original.get(data.keys().get(700)));
     assertThat(view.serialize()).isEqualTo(data.serialized());
   }
@@ -126,11 +132,12 @@ class TestAdaptiveCheckpointIndex {
   @ParameterizedTest
   @MethodSource("modes")
   void concurrentExtensionAndIterationPublishOnlyCompleteCheckpoints(
-      boolean published, String shape, String encoding) throws Exception {
+      boolean published, String shape, String encoding, AdaptiveCheckpointIndexImpl.KeyMemo memo)
+      throws Exception {
     var data = fixture(2048, shape, encoding);
     var view =
         new AdaptiveCheckpointIndexImpl<>(
-            data.serialized(), OBJ_REF_SERIALIZER, 64, published, true, true);
+            data.serialized(), OBJ_REF_SERIALIZER, 64, published, memo);
     var start = new CountDownLatch(1);
     try (var executor = Executors.newFixedThreadPool(4)) {
       var futures = new ArrayList<Future<?>>();
@@ -176,6 +183,44 @@ class TestAdaptiveCheckpointIndex {
     for (int i = 0; i < 2048; i++) assertThat(view.get(data.keys().get(i))).isEqualTo(expected(i));
   }
 
+  @ParameterizedTest
+  @MethodSource("modes")
+  void blockMemosAreLazyPrivateAndNeverPopulatedByForwardScans(
+      boolean published, String shape, String encoding, AdaptiveCheckpointIndexImpl.KeyMemo memo) {
+    var data = fixture(1025, shape, encoding);
+    var codec = new CountingSerializer();
+    var view = new AdaptiveCheckpointIndexImpl<>(data.serialized(), codec, 64, published, memo);
+    assertThat(view.memoizedBlockCount()).isZero();
+    view.prepare();
+    assertThat(view.memoizedBlockCount()).isZero();
+    assertThat(codec.decodes.get()).isZero();
+    var iterator = view.forward(null);
+    while (iterator.hasNext()) iterator.next().key();
+    assertThat(view.memoizedBlockCount()).isZero();
+    assertThat(codec.decodes.get()).isZero();
+    assertThat(requireNonNull(view.getElement(data.keys().get(1))).key())
+        .isEqualTo(data.keys().get(1));
+    assertThat(view.memoizedBlockCount())
+        .isEqualTo(memo == AdaptiveCheckpointIndexImpl.KeyMemo.NONE ? 0 : 1);
+    assertThat(codec.decodes.get()).isZero();
+    assertThat(requireNonNull(view.getElement(data.keys().get(2))).key())
+        .isEqualTo(data.keys().get(2));
+    assertThat(view.memoizedBlockCount())
+        .isEqualTo(memo == AdaptiveCheckpointIndexImpl.KeyMemo.NONE ? 0 : 1);
+    int skips = codec.skips.get();
+    view.getElement(data.keys().get(1));
+    if (memo != AdaptiveCheckpointIndexImpl.KeyMemo.NONE)
+      assertThat(codec.skips.get()).isEqualTo(skips);
+    int blocks = view.memoizedBlockCount();
+    iterator = view.forward(data.keys().get(2));
+    while (iterator.hasNext()) iterator.next().key();
+    assertThat(view.memoizedBlockCount()).isEqualTo(blocks);
+    var other = new AdaptiveCheckpointIndexImpl<>(view.prepare(), codec, published, memo);
+    assertThat(other.memoizedBlockCount()).isZero();
+    assertThat(other.get(data.keys().get(1000))).isEqualTo(expected(1000));
+    assertThat(view.memoizedBlockCount()).isEqualTo(blocks);
+  }
+
   @Test
   void wordDatasetSpansVocabularyWithoutTheHierarchicalPrefix() {
     var first = PrototypeIndexData.create(5000, "WORDS");
@@ -188,12 +233,67 @@ class TestAdaptiveCheckpointIndex {
     assertThat(first.keys()).noneMatch(key -> key.toString().startsWith("catalog/namespace-"));
   }
 
+  @ParameterizedTest
+  @EnumSource(
+      value = AdaptiveCheckpointIndexImpl.KeyMemo.class,
+      names = {"PACKED_PAGED", "DECODED_PAGED"})
+  void pagedMemoSupportsANativeCheckpointAtEveryEntry(AdaptiveCheckpointIndexImpl.KeyMemo memo) {
+    var data = PrototypeIndexData.create(257, "HIERARCHICAL");
+    var anchors = new BitSet();
+    anchors.set(0, 257);
+    var bytes = FullKeyCheckpoints.rewrite(data.serialized(), OBJ_REF_SERIALIZER, anchors);
+    var view = new AdaptiveCheckpointIndexImpl<>(bytes, OBJ_REF_SERIALIZER, 64, true, memo);
+    assertThat(view.prepare().size()).isEqualTo(257);
+    assertThat(view.memoizedPageCount()).isZero();
+    for (int ordinal : new int[] {0, 63, 64, 127, 128, 255, 256})
+      assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
+    assertThat(view.memoizedBlockCount()).isEqualTo(7);
+    assertThat(view.memoizedPageCount()).isEqualTo(5);
+    var iterator = view.forward(null);
+    while (iterator.hasNext()) iterator.next().key();
+    assertThat(view.memoizedBlockCount()).isEqualTo(7);
+    assertThat(view.memoizedPageCount()).isEqualTo(5);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = AdaptiveCheckpointIndexImpl.KeyMemo.class,
+      names = {"PACKED_PAGED", "DECODED_PAGED"})
+  void concurrentMissesPublishOneCompletePageAndBlock(AdaptiveCheckpointIndexImpl.KeyMemo memo)
+      throws Exception {
+    var data = fixture(1025, "HIERARCHICAL", "NONE");
+    var view =
+        new AdaptiveCheckpointIndexImpl<>(data.serialized(), OBJ_REF_SERIALIZER, 64, true, memo);
+    view.prepare();
+    assertThat(view.memoizedPageCount()).isZero();
+    var start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(8)) {
+      var futures = new ArrayList<Future<?>>();
+      for (int thread = 0; thread < 8; thread++)
+        futures.add(
+            executor.submit(
+                () -> {
+                  start.await();
+                  for (int i = 0; i < 100; i++) {
+                    int ordinal = 193 + i % 60;
+                    assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
+                  }
+                  return null;
+                }));
+      start.countDown();
+      for (var future : futures) future.get(30, TimeUnit.SECONDS);
+    }
+    assertThat(view.memoizedPageCount()).isEqualTo(1);
+    assertThat(view.memoizedBlockCount()).isEqualTo(1);
+  }
+
   private static @Nullable ObjRef expected(int ordinal) {
     return ordinal % 17 == 0 ? null : objRef("value", ordinal + 100L, 1 + ordinal % 3);
   }
 
   private static final class CountingSerializer implements IndexValueSerializer<ObjRef> {
     final AtomicInteger decodes = new AtomicInteger();
+    final AtomicInteger skips = new AtomicInteger();
 
     @Override
     public int serializedSize(@Nullable ObjRef value) {
@@ -218,6 +318,7 @@ class TestAdaptiveCheckpointIndex {
 
     @Override
     public void skip(@NonNull ByteBuffer bytes) {
+      skips.incrementAndGet();
       OBJ_REF_SERIALIZER.skip(bytes);
     }
   }

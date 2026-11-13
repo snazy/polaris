@@ -65,7 +65,7 @@ class TestFullKeyCheckpoints {
     var original = source.serialize();
     var encoded = FullKeyCheckpoints.rewrite(original, OBJ_REF_SERIALIZER, policy, 16);
     var oldReader = IndexImpl.deserializeStoreIndex(encoded.duplicate(), OBJ_REF_SERIALIZER);
-    var offset = new OffsetCheckpointIndexImpl<>(encoded, OBJ_REF_SERIALIZER, false, false);
+    var offset = new OffsetCheckpointIndexImpl<>(encoded, OBJ_REF_SERIALIZER);
     for (var key : keys) {
       assertThat(oldReader.get(key)).isEqualTo(source.get(key));
       assertThat(offset.get(key)).isEqualTo(source.get(key));
@@ -103,7 +103,7 @@ class TestFullKeyCheckpoints {
     var original = data.fresh("BASELINE", interval);
     // The unchanged production reader is the old-version/rollback reader for the new bytes.
     var oldReader = IndexImpl.deserializeStoreIndex(encoded.duplicate(), OBJ_REF_SERIALIZER);
-    var newReader = new OffsetCheckpointIndexImpl<>(encoded, OBJ_REF_SERIALIZER, true, true);
+    var newReader = new OffsetCheckpointIndexImpl<>(encoded, OBJ_REF_SERIALIZER);
     for (var key : data.keys()) {
       assertThat(oldReader.get(key)).isEqualTo(original.get(key));
       assertThat(newReader.get(key)).isEqualTo(original.get(key));
@@ -112,9 +112,7 @@ class TestFullKeyCheckpoints {
     var value = ObjRef.objRef("rollback", 123456L);
     oldReader.put(extra, value);
     var rollbackBytes = oldReader.serialize();
-    assertThat(
-            new OffsetCheckpointIndexImpl<>(rollbackBytes, OBJ_REF_SERIALIZER, false, false)
-                .get(extra))
+    assertThat(new OffsetCheckpointIndexImpl<>(rollbackBytes, OBJ_REF_SERIALIZER).get(extra))
         .isEqualTo(value);
     for (String kind : List.of("SLICE", "READ_ONLY", "DIRECT")) {
       var padded =

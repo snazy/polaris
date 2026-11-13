@@ -29,6 +29,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import org.apache.polaris.persistence.nosql.api.index.Index;
@@ -49,66 +50,16 @@ class TestIndexReadPrototypes {
       strings = {
         "CHECKPOINT",
         "COMPACT",
-        "CHECKPOINT_PAGED",
-        "COMPACT_PAGED",
         "OFFSET_PERIODIC",
-        "OFFSET_PERIODIC_PAGED",
         "OFFSET_BINARY",
-        "OFFSET_BINARY_PAGED",
         "ADAPTIVE_LOCKED",
-        "ADAPTIVE_LOCKED_PAGED",
         "ADAPTIVE_PUBLISHED",
-        "ADAPTIVE_PUBLISHED_PAGED"
+        "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+        "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+        "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+        "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH"
       })
-  void memoizesValuesAcrossPointReadsAndIteratorsWithinEachView(String variant) {
-    var data = PrototypeIndexData.create(129, "HIERARCHICAL").encodedFor(variant, 16);
-    var codec = new CountingSerializer();
-    Object prepared = requireNonNull(data.prepare(variant, 16));
-    var view = data.fromPrepared(variant, prepared, codec, 16);
-    var key = data.keys().get(1);
-    assertThat(view.contains(key)).isTrue();
-    var first = view.iterator().next();
-    assertThat(first.key()).isEqualTo(key);
-    assertThat(codec.decodes).isZero();
-    var value = first.value();
-    assertThat(first.value()).isSameAs(value);
-    assertThat(view.get(key)).isSameAs(value);
-    assertThat(view.iterator(key, null, false).next().value()).isSameAs(value);
-    assertThat(view.reverseIterator(null, key, false).next().value()).isSameAs(value);
-    assertThat(codec.decodes).isEqualTo(1);
-
-    // Null values also belong to the memo, while presence-only checks never decode them.
-    var tombstone = data.keys().getFirst();
-    assertThat(view.contains(tombstone)).isFalse();
-    assertThat(codec.decodes).isEqualTo(1);
-    assertThat(view.get(tombstone)).isNull();
-    assertThat(view.get(tombstone)).isNull();
-    assertThat(codec.decodes).isEqualTo(2);
-
-    var independent = data.fromPrepared(variant, prepared, codec, 16);
-    assertThat(independent.get(key)).isEqualTo(value).isNotSameAs(value);
-    assertThat(codec.decodes).isEqualTo(3);
-    // Reuse across page boundaries and a one-entry final page.
-    for (int ordinal : new int[] {63, 64, 65, 127, 128}) {
-      var boundary = data.keys().get(ordinal);
-      var decoded = view.get(boundary);
-      assertThat(view.get(boundary)).isSameAs(decoded);
-      assertThat(view.iterator(boundary, null, false).next().value()).isSameAs(decoded);
-    }
-    assertThat(codec.decodes).isEqualTo(8);
-  }
-
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "CHECKPOINT_UNMEMOIZED",
-        "COMPACT_UNMEMOIZED",
-        "OFFSET_PERIODIC_UNMEMOIZED",
-        "OFFSET_BINARY_UNMEMOIZED",
-        "ADAPTIVE_LOCKED_UNMEMOIZED",
-        "ADAPTIVE_PUBLISHED_UNMEMOIZED"
-      })
-  void unmemoizedViewsRetainValuesOnlyWithinEachElement(String variant) {
+  void memoizesDecodedValuesAcrossElementsWithinEachView(String variant) {
     var data = PrototypeIndexData.create(129, "HIERARCHICAL").encodedFor(variant, 16);
     var codec = new CountingSerializer();
     var view = data.fresh(variant, data.serialized(), codec, 16);
@@ -119,9 +70,29 @@ class TestIndexReadPrototypes {
     var value = element.value();
     assertThat(element.value()).isSameAs(value);
     assertThat(codec.decodes).isEqualTo(1);
-    assertThat(view.get(key)).isEqualTo(value).isNotSameAs(value);
-    assertThat(view.iterator(key, null, false).next().value()).isEqualTo(value).isNotSameAs(value);
+    assertThat(view.get(key)).isSameAs(value);
+    assertThat(view.iterator(key, null, false).next().value()).isSameAs(value);
+    assertThat(view.reverseIterator(null, key, false).next().value()).isSameAs(value);
+    assertThat(codec.decodes).isEqualTo(1);
+    var tombstone = data.keys().getFirst();
+    assertThat(view.contains(tombstone)).isFalse();
+    assertThat(codec.decodes).isEqualTo(1);
+    assertThat(view.get(tombstone)).isNull();
+    assertThat(view.get(tombstone)).isNull();
+    assertThat(codec.decodes).isEqualTo(2);
+    var nullElement = requireNonNull(view.getElement(tombstone));
+    assertThat(nullElement.valueNullable()).isNull();
+    assertThat(nullElement.valueNullable()).isNull();
+    assertThat(codec.decodes).isEqualTo(2);
+    var prepared = data.prepare(variant, 16);
+    var independent = data.fromPrepared(variant, prepared, codec, 16);
+    assertThat(independent.get(key)).isEqualTo(value).isNotSameAs(value);
     assertThat(codec.decodes).isEqualTo(3);
+    var second = data.fromPrepared(variant, prepared, codec, 16);
+    var secondValue = second.get(key);
+    assertThat(secondValue).isEqualTo(value).isNotSameAs(independent.get(key));
+    assertThat(second.get(key)).isSameAs(secondValue);
+    assertThat(codec.decodes).isEqualTo(4);
   }
 
   private static final class CountingSerializer implements IndexValueSerializer<ObjRef> {
@@ -158,22 +129,14 @@ class TestIndexReadPrototypes {
     return Stream.of(
             "CHECKPOINT",
             "COMPACT",
-            "CHECKPOINT_PAGED",
-            "COMPACT_PAGED",
-            "CHECKPOINT_UNMEMOIZED",
-            "COMPACT_UNMEMOIZED",
             "OFFSET_PERIODIC",
-            "OFFSET_PERIODIC_PAGED",
-            "OFFSET_PERIODIC_UNMEMOIZED",
             "OFFSET_BINARY",
-            "OFFSET_BINARY_PAGED",
-            "OFFSET_BINARY_UNMEMOIZED",
             "ADAPTIVE_LOCKED",
-            "ADAPTIVE_LOCKED_PAGED",
-            "ADAPTIVE_LOCKED_UNMEMOIZED",
             "ADAPTIVE_PUBLISHED",
-            "ADAPTIVE_PUBLISHED_PAGED",
-            "ADAPTIVE_PUBLISHED_UNMEMOIZED")
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")
         .flatMap(
             variant ->
                 Stream.of("HIERARCHICAL", "UUID", "BINARY", "WORDS")
@@ -271,22 +234,14 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
-            "CHECKPOINT_PAGED",
-            "COMPACT_PAGED",
-            "CHECKPOINT_UNMEMOIZED",
-            "COMPACT_UNMEMOIZED",
             "OFFSET_PERIODIC",
-            "OFFSET_PERIODIC_PAGED",
-            "OFFSET_PERIODIC_UNMEMOIZED",
             "OFFSET_BINARY",
-            "OFFSET_BINARY_PAGED",
-            "OFFSET_BINARY_UNMEMOIZED",
             "ADAPTIVE_LOCKED",
-            "ADAPTIVE_LOCKED_PAGED",
-            "ADAPTIVE_LOCKED_UNMEMOIZED",
             "ADAPTIVE_PUBLISHED",
-            "ADAPTIVE_PUBLISHED_PAGED",
-            "ADAPTIVE_PUBLISHED_UNMEMOIZED")) {
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")) {
       Object layout = data.prepare(variant, 64);
       var sharedView = data.fromPrepared(variant, layout, 64);
       long metadataBytes = ((IndexReadPrototype<?>) sharedView).metadataBytes();
@@ -307,41 +262,43 @@ class TestIndexReadPrototypes {
   }
 
   @Test
-  void concurrentColdReadersKeepIndependentProgressAndValues() throws Exception {
+  void concurrentColdReadersPublishSharedValues() throws Exception {
     var data = PrototypeIndexData.create(1000, "BINARY");
     var baseline = data.fresh("BASELINE", 64);
     for (String variant :
         List.of(
             "CHECKPOINT",
             "COMPACT",
-            "CHECKPOINT_PAGED",
-            "COMPACT_PAGED",
-            "CHECKPOINT_UNMEMOIZED",
-            "COMPACT_UNMEMOIZED",
             "OFFSET_PERIODIC",
-            "OFFSET_PERIODIC_PAGED",
-            "OFFSET_PERIODIC_UNMEMOIZED",
             "OFFSET_BINARY",
-            "OFFSET_BINARY_PAGED",
-            "OFFSET_BINARY_UNMEMOIZED",
             "ADAPTIVE_LOCKED",
-            "ADAPTIVE_LOCKED_PAGED",
-            "ADAPTIVE_LOCKED_UNMEMOIZED",
             "ADAPTIVE_PUBLISHED",
-            "ADAPTIVE_PUBLISHED_PAGED",
-            "ADAPTIVE_PUBLISHED_UNMEMOIZED")) {
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")) {
       var candidate = data.fresh(variant, 64);
+      var sharedKey = data.keys().get(700);
+      var start = new CountDownLatch(1);
       try (var executor = Executors.newFixedThreadPool(2)) {
         List<Callable<ObjRef>> jobs = new ArrayList<>();
         for (int ordinal : new int[] {700, 5, 100, 999, 300, 1, 510, 812}) {
           var key = data.keys().get(ordinal);
           jobs.add(
               () -> {
-                assertThat(candidate.get(key)).isEqualTo(baseline.get(key));
-                return candidate.get(key);
+                start.await();
+                var sharedValue = candidate.get(sharedKey);
+                var value = candidate.get(key);
+                assertThat(value).isEqualTo(baseline.get(key));
+                assertThat(candidate.get(key)).isSameAs(value);
+                return sharedValue;
               });
         }
-        for (var future : executor.invokeAll(jobs)) future.get();
+        var futures = jobs.stream().map(executor::submit).toList();
+        start.countDown();
+        for (var future : futures) {
+          assertThat(future.get()).isSameAs(candidate.get(sharedKey));
+        }
       }
     }
   }
@@ -359,22 +316,14 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
-            "CHECKPOINT_PAGED",
-            "COMPACT_PAGED",
-            "CHECKPOINT_UNMEMOIZED",
-            "COMPACT_UNMEMOIZED",
             "OFFSET_PERIODIC",
-            "OFFSET_PERIODIC_PAGED",
-            "OFFSET_PERIODIC_UNMEMOIZED",
             "OFFSET_BINARY",
-            "OFFSET_BINARY_PAGED",
-            "OFFSET_BINARY_UNMEMOIZED",
             "ADAPTIVE_LOCKED",
-            "ADAPTIVE_LOCKED_PAGED",
-            "ADAPTIVE_LOCKED_UNMEMOIZED",
             "ADAPTIVE_PUBLISHED",
-            "ADAPTIVE_PUBLISHED_PAGED",
-            "ADAPTIVE_PUBLISHED_UNMEMOIZED")) {
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")) {
       var encoded =
           variant.startsWith("OFFSET_")
               ? FullKeyCheckpoints.rewrite(
@@ -428,22 +377,14 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
-            "CHECKPOINT_PAGED",
-            "COMPACT_PAGED",
-            "CHECKPOINT_UNMEMOIZED",
-            "COMPACT_UNMEMOIZED",
             "OFFSET_PERIODIC",
-            "OFFSET_PERIODIC_PAGED",
-            "OFFSET_PERIODIC_UNMEMOIZED",
             "OFFSET_BINARY",
-            "OFFSET_BINARY_PAGED",
-            "OFFSET_BINARY_UNMEMOIZED",
             "ADAPTIVE_LOCKED",
-            "ADAPTIVE_LOCKED_PAGED",
-            "ADAPTIVE_LOCKED_UNMEMOIZED",
             "ADAPTIVE_PUBLISHED",
-            "ADAPTIVE_PUBLISHED_PAGED",
-            "ADAPTIVE_PUBLISHED_UNMEMOIZED")) {
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS",
+            "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH",
+            "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH")) {
       var candidate = data.fresh(variant, 2);
       for (var key : keys) assertThat(candidate.get(key)).isEqualTo(source.get(key));
       assertThat(collect(candidate, null, null, false, Integer.MAX_VALUE)).isEqualTo(expected);
