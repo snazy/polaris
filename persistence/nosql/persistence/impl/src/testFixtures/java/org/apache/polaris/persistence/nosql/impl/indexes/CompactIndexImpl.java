@@ -62,7 +62,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
       IndexKey.skip(scan);
       int value = scan.position();
       serializer.skip(scan);
-      if (predecessor >= 0) {
+      if (prefix != 0 && predecessor >= 0) {
         if (prefixAt(predecessor * STRIDE) < prefix) predecessor = i - 1;
         else {
           for (int p = predecessor;
@@ -96,25 +96,29 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     return 32L + 16 + (long) entries.length * Integer.BYTES;
   }
 
-  private IndexKey keyAt(int ordinal, boolean memoize) {
+  private IndexKey cachedKeyAt(int ordinal) {
     var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, ordinal >>> PAGE_SHIFT);
-    int slot = ordinal & (PAGE_SIZE - 1);
-    var known = page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, slot);
-    if (known != null) return known;
-    var decoded = requireNonNull(IndexKey.deserializeKey(serializedKeyAt(ordinal)));
-    if (memoize) {
-      if (page == null) {
-        var created =
-            new IndexKey[Math.min(PAGE_SIZE, count - ((ordinal >>> PAGE_SHIFT) << PAGE_SHIFT))];
-        var existing =
-            (IndexKey[])
-                KEY_PAGE.compareAndExchange(searchKeyPages, ordinal >>> PAGE_SHIFT, null, created);
-        page = existing == null ? created : existing;
-      }
-      var existing = (IndexKey) KEY_SLOT.compareAndExchange(page, slot, null, decoded);
-      if (existing != null) return existing;
+    return page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, ordinal & (PAGE_SIZE - 1));
+  }
+
+  private IndexKey memoizeKey(int ordinal, IndexKey decoded, IndexKey[] page) {
+    int pageIndex = ordinal >>> PAGE_SHIFT;
+    if (page == null) {
+      var created = new IndexKey[Math.min(PAGE_SIZE, count - (pageIndex << PAGE_SHIFT))];
+      var existing =
+          (IndexKey[]) KEY_PAGE.compareAndExchange(searchKeyPages, pageIndex, null, created);
+      page = existing == null ? created : existing;
     }
-    return decoded;
+    var existing =
+        (IndexKey) KEY_SLOT.compareAndExchange(page, ordinal & (PAGE_SIZE - 1), null, decoded);
+    return existing == null ? decoded : existing;
+  }
+
+  private IndexKey keyAt(int ordinal) {
+    var known = cachedKeyAt(ordinal);
+    return known != null
+        ? known
+        : requireNonNull(IndexKey.deserializeKey(serializedKeyAt(ordinal, null)));
   }
 
   int memoizedKeyCount() {
@@ -147,43 +151,82 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     return entries[offset + PREDECESSOR];
   }
 
-  private ByteBuffer serializedKeyAt(int ordinal) {
+  private int serializedKeyLength(int ordinal) {
+    int lengths = entries[ordinal * STRIDE + LENGTHS];
+    return (lengths >>> 16) + (lengths & 0xffff);
+  }
+
+  private void reconstructKey(int ordinal, byte[] full) {
     int offset = ordinal * STRIDE;
     int key = keyOffsetAt(offset);
     int prefix = prefixAt(offset);
-    int value = valueAt(offset);
-    ByteBuffer bytes;
-    if (prefix == 0) bytes = source.duplicate().position(key).limit(value);
-    else {
-      byte[] full = new byte[prefix + value - key];
-      int remaining = prefix;
-      for (int p = predecessorAt(offset); p >= 0 && remaining > 0; p = predecessorAt(p * STRIDE)) {
-        int pOffset = p * STRIDE;
-        int pPrefix = prefixAt(pOffset);
-        int take = remaining - pPrefix;
-        if (take > 0) {
-          source.get(keyOffsetAt(pOffset), full, pPrefix, take);
-          remaining -= take;
-        }
+    int remaining = prefix;
+    for (int p = predecessorAt(offset); p >= 0 && remaining > 0; p = predecessorAt(p * STRIDE)) {
+      int pOffset = p * STRIDE;
+      int pPrefix = prefixAt(pOffset);
+      int take = remaining - pPrefix;
+      if (take > 0) {
+        source.get(keyOffsetAt(pOffset), full, pPrefix, take);
+        remaining -= take;
       }
-      checkArgument(remaining == 0, "Incomplete predecessor chain");
-      source.get(key, full, prefix, value - key);
-      bytes = ByteBuffer.wrap(full);
     }
-    return bytes;
+    checkArgument(remaining == 0, "Incomplete predecessor chain");
+    source.get(key, full, prefix, valueAt(offset) - key);
+  }
+
+  private ByteBuffer serializedKeyAt(int ordinal, ByteBuffer scratch) {
+    int offset = ordinal * STRIDE;
+    if (prefixAt(offset) == 0)
+      return source.duplicate().position(keyOffsetAt(offset)).limit(valueAt(offset));
+    int length = serializedKeyLength(ordinal);
+    if (scratch == null) scratch = ByteBuffer.allocate(length);
+    reconstructKey(ordinal, scratch.array());
+    return scratch.clear().limit(length);
   }
 
   private int search(IndexKey key) {
     int low = 0;
     int high = count - 1;
+    ByteBuffer scratch = null;
     while (low <= high) {
       int mid = (low + high) >>> 1;
-      int compare = keyAt(mid, true).compareTo(key);
+      var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, mid >>> PAGE_SHIFT);
+      var probe =
+          page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, mid & (PAGE_SIZE - 1));
+      if (probe == null) {
+        if (prefixAt(mid * STRIDE) != 0) {
+          int length = serializedKeyLength(mid);
+          if (scratch == null || scratch.capacity() < length)
+            scratch =
+                ByteBuffer.allocate(
+                    Math.max(length, scratch == null ? 32 : scratch.capacity() * 2));
+        }
+        probe =
+            memoizeKey(
+                mid, requireNonNull(IndexKey.deserializeKey(serializedKeyAt(mid, scratch))), page);
+      }
+      int compare = probe.compareTo(key);
       if (compare < 0) low = mid + 1;
       else if (compare > 0) high = mid - 1;
       else return mid;
     }
     return -low - 1;
+  }
+
+  @Override
+  public V get(@NonNull IndexKey key) {
+    int found = search(key);
+    if (found < 0) return null;
+    int offset = found * STRIDE;
+    return readValue(found, valueAt(offset), endAt(offset));
+  }
+
+  @Override
+  public boolean contains(IndexKey key) {
+    int found = search(key);
+    if (found < 0) return false;
+    int offset = found * STRIDE;
+    return hasValue(found, valueAt(offset), endAt(offset));
   }
 
   @Override
@@ -196,7 +239,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   InternalIndexElement<V> entryAt(int ordinal) {
     checkArgument(ordinal >= 0 && ordinal < count, "Invalid ordinal");
     int offset = ordinal * STRIDE;
-    return element(keyAt(ordinal, false), ordinal, valueAt(offset), endAt(offset));
+    return element(keyAt(ordinal), ordinal, valueAt(offset), endAt(offset));
   }
 
   @Override
@@ -206,6 +249,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     return new AbstractIterator<>() {
       int next = start;
       byte[] keyBytes = new byte[0];
+      ByteBuffer keyBuffer;
       boolean first = true;
 
       @Override
@@ -214,24 +258,21 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
         int offset = next * STRIDE;
         int value = valueAt(offset);
         int key = keyOffsetAt(offset);
-        int length;
+        int prefix = prefixAt(offset);
+        int length = prefix + value - key;
+        if (keyBytes.length < length) {
+          keyBytes = Arrays.copyOf(keyBytes, Math.max(length, Math.max(32, keyBytes.length * 2)));
+          keyBuffer = ByteBuffer.wrap(keyBytes);
+        }
         if (first) {
           first = false;
-          var encoded = serializedKeyAt(next);
-          length = encoded.remaining();
-          keyBytes = new byte[Math.max(32, length)];
-          encoded.get(keyBytes, 0, length);
+          reconstructKey(next, keyBytes);
         } else {
-          int prefix = prefixAt(offset);
-          length = prefix + value - key;
-          if (keyBytes.length < length) {
-            keyBytes = Arrays.copyOf(keyBytes, Math.max(length, keyBytes.length * 2));
-          }
           source.get(key, keyBytes, prefix, value - key);
         }
         next++;
         return element(
-            requireNonNull(IndexKey.deserializeKey(ByteBuffer.wrap(keyBytes, 0, length))),
+            requireNonNull(IndexKey.deserializeKey(keyBuffer.clear().limit(length))),
             next - 1,
             value,
             endAt(offset));

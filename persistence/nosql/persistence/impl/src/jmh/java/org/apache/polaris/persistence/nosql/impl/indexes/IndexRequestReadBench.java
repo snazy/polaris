@@ -51,6 +51,7 @@ public class IndexRequestReadBench {
       "BASELINE",
       "CHECKPOINT",
       "COMPACT",
+      "COMPACT3",
       "OFFSET_PERIODIC",
       "OFFSET_BINARY",
       "ADAPTIVE_LOCKED",

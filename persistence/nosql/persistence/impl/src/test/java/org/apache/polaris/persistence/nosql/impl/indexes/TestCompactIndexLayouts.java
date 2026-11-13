@@ -18,8 +18,11 @@
  */
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
+import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.OBJ_REF_SERIALIZER;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.objRef;
+import static org.apache.polaris.persistence.varint.VarInt.putVarInt;
+import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
@@ -44,7 +47,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TestCompactIndexLayouts {
   static Stream<String> modes() {
-    return Stream.of("COMPACT");
+    return Stream.of("COMPACT", "COMPACT3");
   }
 
   static Stream<Arguments> cases() {
@@ -79,15 +82,16 @@ class TestCompactIndexLayouts {
       String mode, String shape, String encoding) {
     var data = fixture(shape, encoding);
     var codec = new CountingSerializer();
-    var view = (CompactIndexImpl<ObjRef>) data.fresh(mode, data.serialized(), codec, 64);
-    assertThat(view.layout.entries()).hasSize(257 * 4);
-    assertThat(view.memoizedKeyCount()).isZero();
+    var view = (IndexReadPrototype<ObjRef>) data.fresh(mode, data.serialized(), codec, 64);
+    assertThat(view.metadataBytes())
+        .isEqualTo(48L + 257 * (mode.equals("COMPACT3") ? 3 : 4) * Integer.BYTES);
+    assertThat(memoizedKeyCount(view)).isZero();
     assertThat(codec.decodes).isZero();
     var iterator = view.forward(null);
     while (iterator.hasNext()) iterator.next().key();
-    assertThat(view.memoizedKeyCount()).isZero();
+    assertThat(memoizedKeyCount(view)).isZero();
     view.getElement(data.keys().get(255));
-    assertThat(view.memoizedKeyCount()).isBetween(1, 10);
+    assertThat(memoizedKeyCount(view)).isBetween(1, 10);
     assertThat(codec.decodes).isZero();
     var baseline = data.fresh("BASELINE", 64);
     for (var key : data.keys()) assertThat(view.get(key)).isEqualTo(baseline.get(key));
@@ -99,13 +103,13 @@ class TestCompactIndexLayouts {
   void sharedLayoutsKeepDecodedKeysPrivateToEachView(String mode, String shape, String encoding) {
     var data = fixture(shape, encoding);
     var prepared = data.prepare(mode, 64);
-    var first = (CompactIndexImpl<?>) data.fromPrepared(mode, prepared, 64);
-    var second = (CompactIndexImpl<?>) data.fromPrepared(mode, prepared, 64);
-    assertThat(first.memoizedKeyCount()).isZero();
-    assertThat(second.memoizedKeyCount()).isZero();
+    var first = (IndexReadPrototype<?>) data.fromPrepared(mode, prepared, 64);
+    var second = (IndexReadPrototype<?>) data.fromPrepared(mode, prepared, 64);
+    assertThat(memoizedKeyCount(first)).isZero();
+    assertThat(memoizedKeyCount(second)).isZero();
     assertThat(first.get(data.keys().get(128))).isEqualTo(second.get(data.keys().get(128)));
     first.get(data.keys().get(255));
-    assertThat(first.memoizedKeyCount()).isGreaterThan(second.memoizedKeyCount());
+    assertThat(memoizedKeyCount(first)).isGreaterThan(memoizedKeyCount(second));
   }
 
   @ParameterizedTest
@@ -160,6 +164,56 @@ class TestCompactIndexLayouts {
       start.countDown();
       for (var future : futures) future.get(30, TimeUnit.SECONDS);
     }
+  }
+
+  private static int memoizedKeyCount(IndexReadPrototype<?> view) {
+    return switch (view) {
+      case CompactIndexImpl<?> compact -> compact.memoizedKeyCount();
+      case Compact3IndexImpl<?> compact -> compact.memoizedKeyCount();
+      default -> throw new IllegalArgumentException();
+    };
+  }
+
+  @ParameterizedTest
+  @MethodSource("modes")
+  void preservesValueBoundariesWithNoncanonicalPrefixVarints(String mode) {
+    var data = PrototypeIndexData.create(129, "BINARY");
+    var bytes = data.serialized().duplicate();
+    var rewritten = ByteBuffer.allocate(bytes.remaining() + data.keys().size() * 9);
+    rewritten.put(bytes.get());
+    int count = readVarInt(bytes);
+    putVarInt(rewritten, count);
+    for (int ordinal = 0; ordinal < count; ordinal++) {
+      if (ordinal != 0) {
+        int delta = readVarInt(bytes);
+        int width = 3 + ordinal % 7;
+        for (int i = 1; i < width; i++) {
+          rewritten.put((byte) ((delta & 0x7f) | 0x80));
+          delta >>>= 7;
+        }
+        rewritten.put((byte) delta);
+      }
+      int start = bytes.position();
+      IndexKey.skip(bytes);
+      OBJ_REF_SERIALIZER.skip(bytes);
+      rewritten.put(bytes.duplicate().position(start).limit(bytes.position()));
+    }
+    rewritten.flip();
+    var view = data.fresh(mode, rewritten, OBJ_REF_SERIALIZER, 64);
+    var baseline = data.fresh("BASELINE", rewritten, OBJ_REF_SERIALIZER, 64);
+    for (var key : data.keys()) {
+      var expected = requireNonNull(baseline.getElement(key));
+      var actual = requireNonNull(view.getElement(key));
+      assertThat(view.get(key)).isEqualTo(expected.valueNullable());
+      assertThat(actual.contentSerializedSize(OBJ_REF_SERIALIZER))
+          .isEqualTo(expected.contentSerializedSize(OBJ_REF_SERIALIZER));
+      var expectedContent = ByteBuffer.allocate(expected.contentSerializedSize(OBJ_REF_SERIALIZER));
+      var actualContent = ByteBuffer.allocate(actual.contentSerializedSize(OBJ_REF_SERIALIZER));
+      expected.serializeContent(OBJ_REF_SERIALIZER, expectedContent);
+      actual.serializeContent(OBJ_REF_SERIALIZER, actualContent);
+      assertThat(actualContent.flip()).isEqualTo(expectedContent.flip());
+    }
+    assertThat(view.serialize()).isEqualTo(rewritten);
   }
 
   private static final class CountingSerializer implements IndexValueSerializer<ObjRef> {

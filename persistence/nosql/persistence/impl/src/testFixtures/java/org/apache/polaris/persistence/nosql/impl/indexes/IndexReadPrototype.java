@@ -228,8 +228,38 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
     return page;
   }
 
-  final InternalIndexElement<V> element(IndexKey key, int ordinal, int valueOffset, int endOffset) {
+  private Object readValueState(int ordinal, int valueOffset, int endOffset) {
+    var page = valuePage(ordinal, true);
     int slot = ordinal & (PAGE_SIZE - 1);
+    var value = ARRAY_ELEMENT.getVolatile(page, slot);
+    if (value == null) {
+      V decoded = serializer.deserialize(valueBuffer(valueOffset, endOffset));
+      value = decoded == null ? NULL : decoded;
+      // Concurrent misses may decode twice; all readers use the published winner.
+      var existing = ARRAY_ELEMENT.compareAndExchange(page, slot, null, value);
+      if (existing != null) value = existing;
+    }
+    return value;
+  }
+
+  final V readValue(int ordinal, int valueOffset, int endOffset) {
+    var value = readValueState(ordinal, valueOffset, endOffset);
+    return value == NULL ? null : cast(value);
+  }
+
+  final boolean hasValue(int ordinal, int valueOffset, int endOffset) {
+    var page = valuePage(ordinal, false);
+    var value = page == null ? null : ARRAY_ELEMENT.getVolatile(page, ordinal & (PAGE_SIZE - 1));
+    return value == null
+        ? !serializer.isNullSerialized(valueBuffer(valueOffset, endOffset))
+        : value != NULL;
+  }
+
+  private ByteBuffer valueBuffer(int valueOffset, int endOffset) {
+    return source.duplicate().position(valueOffset).limit(endOffset);
+  }
+
+  final InternalIndexElement<V> element(IndexKey key, int ordinal, int valueOffset, int endOffset) {
     return new AbstractIndexElement<>() {
       private volatile Object state = UNREAD;
 
@@ -241,34 +271,23 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
       @Override
       public boolean hasValue() {
         var value = state;
-        if (value == UNREAD) {
-          var page = valuePage(ordinal, false);
-          value = page == null ? UNREAD : ARRAY_ELEMENT.getVolatile(page, slot);
-          if (value == null) value = UNREAD;
-        }
-        return value == UNREAD ? !serializer.isNullSerialized(valueBuffer()) : value != NULL;
+        return value == UNREAD
+            ? IndexReadPrototype.this.hasValue(ordinal, valueOffset, endOffset)
+            : value != NULL;
       }
 
       @Override
       public V valueNullable() {
         var value = state;
         if (value == UNREAD) {
-          var page = valuePage(ordinal, true);
-          value = ARRAY_ELEMENT.getVolatile(page, slot);
-          if (value == null) {
-            V decoded = serializer.deserialize(valueBuffer());
-            value = decoded == null ? NULL : decoded;
-            // Concurrent misses may decode twice; all readers use the published winner.
-            var existing = ARRAY_ELEMENT.compareAndExchange(page, slot, null, value);
-            if (existing != null) value = existing;
-          }
+          value = readValueState(ordinal, valueOffset, endOffset);
           state = value;
         }
         return value == NULL ? null : cast(value);
       }
 
       private ByteBuffer valueBuffer() {
-        return source.duplicate().position(valueOffset).limit(endOffset);
+        return IndexReadPrototype.this.valueBuffer(valueOffset, endOffset);
       }
 
       @Override
