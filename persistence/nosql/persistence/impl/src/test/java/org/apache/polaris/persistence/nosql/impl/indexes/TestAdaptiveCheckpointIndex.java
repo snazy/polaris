@@ -47,18 +47,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 class TestAdaptiveCheckpointIndex {
   static Stream<Arguments> modes() {
     return Stream.of(false, true)
-        .flatMap(
-            published ->
-                Stream.of("HIERARCHICAL", "WORDS")
-                    .flatMap(
-                        shape ->
-                            Stream.of("NONE", "PERIODIC", "BINARY", "MIXED")
-                                .flatMap(
-                                    encoding ->
-                                        Stream.of(AdaptiveCheckpointIndexImpl.KeyMemo.values())
-                                            .map(
-                                                memo ->
-                                                    arguments(published, shape, encoding, memo)))));
+        .flatMap(published ->
+            Stream.of("HIERARCHICAL", "WORDS")
+                .flatMap(shape ->
+                    Stream.of("NONE", "PERIODIC", "BINARY", "MIXED")
+                        .flatMap(encoding ->
+                            Stream.of(AdaptiveCheckpointIndexImpl.KeyMemo.values())
+                                .map(memo -> arguments(published, shape, encoding, memo)))));
   }
 
   private static PrototypeIndexData fixture(int count, String shape, String encoding) {
@@ -142,39 +137,36 @@ class TestAdaptiveCheckpointIndex {
     try (var executor = Executors.newFixedThreadPool(4)) {
       var futures = new ArrayList<Future<?>>();
       futures.add(
-          executor.submit(
-              () -> {
-                start.await();
-                int ordinal = 1;
-                for (var entry : view) {
-                  while (ordinal % 17 == 0) ordinal++;
-                  assertThat(entry.key()).isEqualTo(data.keys().get(ordinal));
-                  assertThat(entry.value()).isEqualTo(expected(ordinal));
-                  ordinal++;
-                }
-                assertThat(ordinal).isEqualTo(2048);
-                return null;
-              }));
+          executor.submit(() -> {
+            start.await();
+            int ordinal = 1;
+            for (var entry : view) {
+              while (ordinal % 17 == 0) ordinal++;
+              assertThat(entry.key()).isEqualTo(data.keys().get(ordinal));
+              assertThat(entry.value()).isEqualTo(expected(ordinal));
+              ordinal++;
+            }
+            assertThat(ordinal).isEqualTo(2048);
+            return null;
+          }));
       for (int thread = 1; thread < 4; thread++) {
         int offset = thread * 431;
         futures.add(
-            executor.submit(
-                () -> {
-                  start.await();
-                  for (int i = 0; i < 200; i++) {
-                    int ordinal = (offset + i * 137) % 2048;
-                    assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
-                    var snapshot = view.directory();
-                    for (int p = 0; p < snapshot.size(); p++) {
-                      if (p > 0)
-                        assertThat(snapshot.ordinals()[p])
-                            .isGreaterThan(snapshot.ordinals()[p - 1]);
-                      int ref = snapshot.references()[p];
-                      if (ref < 0) assertThat(~ref).isLessThan(snapshot.used());
-                    }
-                  }
-                  return null;
-                }));
+            executor.submit(() -> {
+              start.await();
+              for (int i = 0; i < 200; i++) {
+                int ordinal = (offset + i * 137) % 2048;
+                assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
+                var snapshot = view.directory();
+                for (int p = 0; p < snapshot.size(); p++) {
+                  if (p > 0)
+                    assertThat(snapshot.ordinals()[p]).isGreaterThan(snapshot.ordinals()[p - 1]);
+                  int ref = snapshot.references()[p];
+                  if (ref < 0) assertThat(~ref).isLessThan(snapshot.used());
+                }
+              }
+              return null;
+            }));
       }
       start.countDown();
       for (var future : futures) future.get(30, TimeUnit.SECONDS);
@@ -271,15 +263,14 @@ class TestAdaptiveCheckpointIndex {
       var futures = new ArrayList<Future<?>>();
       for (int thread = 0; thread < 8; thread++)
         futures.add(
-            executor.submit(
-                () -> {
-                  start.await();
-                  for (int i = 0; i < 100; i++) {
-                    int ordinal = 193 + i % 60;
-                    assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
-                  }
-                  return null;
-                }));
+            executor.submit(() -> {
+              start.await();
+              for (int i = 0; i < 100; i++) {
+                int ordinal = 193 + i % 60;
+                assertThat(view.get(data.keys().get(ordinal))).isEqualTo(expected(ordinal));
+              }
+              return null;
+            }));
       start.countDown();
       for (var future : futures) future.get(30, TimeUnit.SECONDS);
     }

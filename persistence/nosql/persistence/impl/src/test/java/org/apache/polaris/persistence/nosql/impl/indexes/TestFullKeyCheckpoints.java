@@ -38,18 +38,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 class TestFullKeyCheckpoints {
   static Stream<Arguments> cases() {
     return Stream.of(FullKeyCheckpoints.Policy.values())
-        .flatMap(
-            policy ->
-                Stream.of(1, 16, 64)
-                    .flatMap(
-                        interval ->
-                            Stream.of(0, 1, 33, 257)
-                                .flatMap(
-                                    count ->
-                                        Stream.of("HIERARCHICAL", "UUID", "BINARY")
-                                            .map(
-                                                shape ->
-                                                    arguments(policy, interval, count, shape)))));
+        .flatMap(policy ->
+            Stream.of(1, 16, 64)
+                .flatMap(interval ->
+                    Stream.of(0, 1, 33, 257)
+                        .flatMap(count ->
+                            Stream.of("HIERARCHICAL", "UUID", "BINARY")
+                                .map(shape -> arguments(policy, interval, count, shape)))));
   }
 
   @ParameterizedTest
