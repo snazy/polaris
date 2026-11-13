@@ -89,6 +89,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
       case "BASELINE" -> IndexImpl.deserializeStoreIndex(bytes.slice(), codec);
       case "CHECKPOINT" -> new CheckpointIndexImpl<>(bytes, codec, interval);
       case "COMPACT" -> new CompactIndexImpl<>(bytes, codec);
+      case "COMPACT3" -> new Compact3IndexImpl<>(bytes, codec);
       case "OFFSET_PERIODIC", "OFFSET_BINARY" -> new OffsetCheckpointIndexImpl<>(bytes, codec);
       default -> throw new IllegalArgumentException(variant);
     };
@@ -105,6 +106,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
       case OffsetCheckpointIndexImpl<?> offset -> offset.prepare();
       case CheckpointIndexImpl<?> checkpoint -> checkpoint.prepare();
       case CompactIndexImpl<?> compact -> compact.layout;
+      case Compact3IndexImpl<?> compact -> compact.layout;
       default -> throw new IllegalArgumentException(variant);
     };
   }
@@ -127,6 +129,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
       case "CHECKPOINT" ->
           new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec);
       case "COMPACT" -> new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
+      case "COMPACT3" -> new Compact3IndexImpl<>((Compact3IndexImpl.Layout) prepared, codec);
       case "OFFSET_PERIODIC", "OFFSET_BINARY" ->
           new OffsetCheckpointIndexImpl<>((OffsetCheckpointIndexImpl.Directory) prepared, codec);
       default -> throw new IllegalArgumentException(variant);

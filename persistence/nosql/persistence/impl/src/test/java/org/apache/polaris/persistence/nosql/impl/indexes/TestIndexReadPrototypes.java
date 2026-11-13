@@ -50,6 +50,7 @@ class TestIndexReadPrototypes {
       strings = {
         "CHECKPOINT",
         "COMPACT",
+        "COMPACT3",
         "OFFSET_PERIODIC",
         "OFFSET_BINARY",
         "ADAPTIVE_LOCKED",
@@ -129,6 +130,7 @@ class TestIndexReadPrototypes {
     return Stream.of(
             "CHECKPOINT",
             "COMPACT",
+            "COMPACT3",
             "OFFSET_PERIODIC",
             "OFFSET_BINARY",
             "ADAPTIVE_LOCKED",
@@ -229,6 +231,7 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
+            "COMPACT3",
             "OFFSET_PERIODIC",
             "OFFSET_BINARY",
             "ADAPTIVE_LOCKED",
@@ -263,6 +266,7 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
+            "COMPACT3",
             "OFFSET_PERIODIC",
             "OFFSET_BINARY",
             "ADAPTIVE_LOCKED",
@@ -309,6 +313,7 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
+            "COMPACT3",
             "OFFSET_PERIODIC",
             "OFFSET_BINARY",
             "ADAPTIVE_LOCKED",
@@ -370,6 +375,7 @@ class TestIndexReadPrototypes {
         List.of(
             "CHECKPOINT",
             "COMPACT",
+            "COMPACT3",
             "OFFSET_PERIODIC",
             "OFFSET_BINARY",
             "ADAPTIVE_LOCKED",
