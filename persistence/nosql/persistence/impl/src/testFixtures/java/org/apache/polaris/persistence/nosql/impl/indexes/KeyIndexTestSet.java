@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -272,6 +273,10 @@ public interface KeyIndexTestSet<ELEMENT> {
 
   class Words {
     private static final List<String> WORDS = new ArrayList<>();
+
+    static List<String> words() {
+      return Collections.unmodifiableList(WORDS);
+    }
 
     static {
       // Word list "generated" via:

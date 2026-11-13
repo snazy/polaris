@@ -48,7 +48,21 @@ import org.openjdk.jmh.infra.Blackhole;
 public class IndexReadComparisonBench {
   @State(Scope.Thread)
   public static class Data {
-    @Param({"BASELINE", "CHECKPOINT", "COMPACT", "CHECKPOINT_PAGED", "COMPACT_PAGED"})
+    @Param({
+      "BASELINE",
+      "CHECKPOINT",
+      "COMPACT",
+      "CHECKPOINT_PAGED",
+      "COMPACT_PAGED",
+      "CHECKPOINT_UNMEMOIZED",
+      "COMPACT_UNMEMOIZED",
+      "OFFSET_PERIODIC",
+      "OFFSET_PERIODIC_PAGED",
+      "OFFSET_PERIODIC_UNMEMOIZED",
+      "OFFSET_BINARY",
+      "OFFSET_BINARY_PAGED",
+      "OFFSET_BINARY_UNMEMOIZED"
+    })
     public String variant;
 
     @Param({"1000", "5000"})
@@ -72,7 +86,7 @@ public class IndexReadComparisonBench {
 
     @Setup
     public void setup() {
-      data = PrototypeIndexData.create(entries, shape);
+      data = PrototypeIndexData.create(entries, shape).encodedFor(variant, checkpointInterval);
       prepared = data.prepare(variant, checkpointInterval);
       warm = preparedView();
       queries = new IndexKey[256];
@@ -91,7 +105,7 @@ public class IndexReadComparisonBench {
     }
 
     private IndexKey hitAt(int ordinal) {
-      return data.keys().get(ordinal % 17 == 0 ? ordinal + 1 : ordinal);
+      return data.liveKeyAt(ordinal);
     }
 
     IndexSpi<ObjRef> fresh() {
