@@ -35,18 +35,13 @@ import org.jspecify.annotations.NonNull;
 final class OffsetCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
   final Directory directory;
 
-  OffsetCheckpointIndexImpl(
-      ByteBuffer bytes, IndexValueSerializer<V> codec, boolean pagedValues, boolean memoizeValues) {
-    super(bytes, codec, pagedValues, memoizeValues);
+  OffsetCheckpointIndexImpl(ByteBuffer bytes, IndexValueSerializer<V> codec) {
+    super(bytes, codec);
     directory = new Directory(source, bodyOffset, count == 0);
   }
 
-  OffsetCheckpointIndexImpl(
-      Directory prepared,
-      IndexValueSerializer<V> codec,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(prepared.source, codec, pagedValues, memoizeValues);
+  OffsetCheckpointIndexImpl(Directory prepared, IndexValueSerializer<V> codec) {
+    super(prepared.source, codec);
     checkArgument(prepared.complete, "Shared directory must be complete");
     directory = prepared;
   }

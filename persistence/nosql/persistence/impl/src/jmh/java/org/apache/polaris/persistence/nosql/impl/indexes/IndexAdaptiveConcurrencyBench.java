@@ -44,7 +44,7 @@ import org.openjdk.jmh.infra.ThreadParams;
 public class IndexAdaptiveConcurrencyBench {
   @State(Scope.Benchmark)
   public static class Shared {
-    @Param({"ADAPTIVE_LOCKED_UNMEMOIZED", "ADAPTIVE_PUBLISHED_UNMEMOIZED"})
+    @Param({"ADAPTIVE_LOCKED", "ADAPTIVE_PUBLISHED"})
     public String variant;
 
     @Param({"HIERARCHICAL", "WORDS"})

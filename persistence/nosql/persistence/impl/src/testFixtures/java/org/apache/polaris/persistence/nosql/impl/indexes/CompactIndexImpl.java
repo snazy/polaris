@@ -23,42 +23,35 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
 
 import com.google.common.collect.AbstractIterator;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
 import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.jspecify.annotations.NonNull;
 
-/** Option D: eagerly scan v1 boundaries into five primitive ints per physical entry. */
+/** Option D: four primitive ints per v1 entry, with lazy paged search-key memoization. */
 final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
-  private static final int STRIDE = 5;
-  private static final int KEY = 0;
-  private static final int PREFIX = 1;
-  private static final int VALUE = 2;
-  private static final int END = 3;
-  private static final int PREDECESSOR = 4;
+  private static final int STRIDE = 4;
+  private static final int LENGTHS = 0;
+  private static final int VALUE = 1;
+  private static final int END = 2;
+  private static final int PREDECESSOR = 3;
+  private static final int PAGE_SHIFT = 6;
+  private static final int PAGE_SIZE = 1 << PAGE_SHIFT;
+  private static final VarHandle KEY_PAGE = MethodHandles.arrayElementVarHandle(IndexKey[][].class);
+  private static final VarHandle KEY_SLOT = MethodHandles.arrayElementVarHandle(IndexKey[].class);
   final Layout layout;
+  private final int[] entries;
   // Per-view memoization of binary-search keys, deliberately not part of the shared layout.
-  private final Map<Integer, IndexKey> searchKeys = new ConcurrentHashMap<>();
+  private final IndexKey[][] searchKeyPages;
 
   CompactIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer) {
-    this(source, serializer, false);
-  }
-
-  CompactIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer, boolean pagedValues) {
-    this(source, serializer, pagedValues, true);
-  }
-
-  CompactIndexImpl(
-      ByteBuffer source,
-      IndexValueSerializer<V> serializer,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(source, serializer, pagedValues, memoizeValues);
-    int[] entries = new int[Math.multiplyExact(count, STRIDE)];
+    super(source, serializer);
+    entries = new int[Math.multiplyExact(count, STRIDE)];
+    searchKeyPages = new IndexKey[(int) (((long) count + PAGE_SIZE - 1) >>> PAGE_SHIFT)][];
     var scan = this.source.duplicate().position(bodyOffset);
     int previousLength = 0;
     int predecessor = -1;
@@ -70,75 +63,106 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
       int value = scan.position();
       serializer.skip(scan);
       if (predecessor >= 0) {
-        if (entries[predecessor * STRIDE + PREFIX] < prefix) predecessor = i - 1;
+        if (prefixAt(predecessor * STRIDE) < prefix) predecessor = i - 1;
         else {
           for (int p = predecessor;
-              p >= 0 && entries[p * STRIDE + PREFIX] >= prefix;
-              p = entries[p * STRIDE + PREDECESSOR]) predecessor = p;
+              p >= 0 && prefixAt(p * STRIDE) >= prefix;
+              p = predecessorAt(p * STRIDE)) predecessor = p;
         }
       }
+      previousLength = prefix + value - key;
+      checkArgument(previousLength <= IndexImpl.MAX_KEY_BYTES, "Key too large");
       int offset = i * STRIDE;
-      entries[offset + KEY] = key;
-      entries[offset + PREFIX] = prefix;
+      // Both lengths fit in 16 bits under v1's existing 4096-byte full-key limit.
+      entries[offset + LENGTHS] = (prefix << 16) | (value - key);
       entries[offset + VALUE] = value;
       entries[offset + END] = scan.position();
       entries[offset + PREDECESSOR] = prefix == 0 ? -1 : predecessor;
-      if (prefix == 0 || entries[predecessor * STRIDE + PREFIX] > prefix) predecessor = i;
-      previousLength = prefix + value - key;
-      checkArgument(previousLength <= IndexImpl.MAX_KEY_BYTES, "Key too large");
+      if (prefix == 0 || prefixAt(predecessor * STRIDE) > prefix) predecessor = i;
     }
     checkArgument(!scan.hasRemaining(), "Entry count does not match payload");
     layout = new Layout(this.source, entries);
   }
 
   CompactIndexImpl(Layout layout, IndexValueSerializer<V> serializer) {
-    this(layout, serializer, false);
-  }
-
-  CompactIndexImpl(Layout layout, IndexValueSerializer<V> serializer, boolean pagedValues) {
-    this(layout, serializer, pagedValues, true);
-  }
-
-  CompactIndexImpl(
-      Layout layout,
-      IndexValueSerializer<V> serializer,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(layout.source, serializer, pagedValues, memoizeValues);
+    super(layout.source, serializer);
     this.layout = layout;
+    entries = layout.entries;
+    searchKeyPages = new IndexKey[(int) (((long) count + PAGE_SIZE - 1) >>> PAGE_SHIFT)][];
   }
 
   @Override
   long metadataBytes() {
-    return 32L + 16 + (long) layout.entries.length * Integer.BYTES;
+    return 32L + 16 + (long) entries.length * Integer.BYTES;
   }
 
   private IndexKey keyAt(int ordinal, boolean memoize) {
-    IndexKey known = searchKeys.get(ordinal);
+    var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, ordinal >>> PAGE_SHIFT);
+    int slot = ordinal & (PAGE_SIZE - 1);
+    var known = page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, slot);
     if (known != null) return known;
     var decoded = requireNonNull(IndexKey.deserializeKey(serializedKeyAt(ordinal)));
-    if (memoize) searchKeys.put(ordinal, decoded);
+    if (memoize) {
+      if (page == null) {
+        var created =
+            new IndexKey[Math.min(PAGE_SIZE, count - ((ordinal >>> PAGE_SHIFT) << PAGE_SHIFT))];
+        var existing =
+            (IndexKey[])
+                KEY_PAGE.compareAndExchange(searchKeyPages, ordinal >>> PAGE_SHIFT, null, created);
+        page = existing == null ? created : existing;
+      }
+      var existing = (IndexKey) KEY_SLOT.compareAndExchange(page, slot, null, decoded);
+      if (existing != null) return existing;
+    }
     return decoded;
+  }
+
+  int memoizedKeyCount() {
+    int found = 0;
+    for (int p = 0; p < searchKeyPages.length; p++) {
+      var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, p);
+      if (page != null)
+        for (int i = 0; i < page.length; i++) if (KEY_SLOT.getVolatile(page, i) != null) found++;
+    }
+    return found;
+  }
+
+  private int prefixAt(int offset) {
+    return entries[offset + LENGTHS] >>> 16;
+  }
+
+  private int valueAt(int offset) {
+    return entries[offset + VALUE];
+  }
+
+  private int keyOffsetAt(int offset) {
+    return valueAt(offset) - (entries[offset + LENGTHS] & 0xffff);
+  }
+
+  private int endAt(int offset) {
+    return entries[offset + END];
+  }
+
+  private int predecessorAt(int offset) {
+    return entries[offset + PREDECESSOR];
   }
 
   private ByteBuffer serializedKeyAt(int ordinal) {
     int offset = ordinal * STRIDE;
-    int key = layout.entries[offset + KEY];
-    int prefix = layout.entries[offset + PREFIX];
-    int value = layout.entries[offset + VALUE];
+    int key = keyOffsetAt(offset);
+    int prefix = prefixAt(offset);
+    int value = valueAt(offset);
     ByteBuffer bytes;
     if (prefix == 0) bytes = source.duplicate().position(key).limit(value);
     else {
       byte[] full = new byte[prefix + value - key];
       int remaining = prefix;
-      for (int p = layout.entries[offset + PREDECESSOR];
-          p >= 0 && remaining > 0;
-          p = layout.entries[p * STRIDE + PREDECESSOR]) {
+      for (int p = predecessorAt(offset); p >= 0 && remaining > 0; p = predecessorAt(p * STRIDE)) {
         int pOffset = p * STRIDE;
-        int pPrefix = layout.entries[pOffset + PREFIX];
+        int pPrefix = prefixAt(pOffset);
         int take = remaining - pPrefix;
         if (take > 0) {
-          source.get(layout.entries[pOffset + KEY], full, pPrefix, take);
+          source.get(keyOffsetAt(pOffset), full, pPrefix, take);
           remaining -= take;
         }
       }
@@ -172,11 +196,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
   InternalIndexElement<V> entryAt(int ordinal) {
     checkArgument(ordinal >= 0 && ordinal < count, "Invalid ordinal");
     int offset = ordinal * STRIDE;
-    return element(
-        keyAt(ordinal, false),
-        ordinal,
-        layout.entries[offset + VALUE],
-        layout.entries[offset + END]);
+    return element(keyAt(ordinal, false), ordinal, valueAt(offset), endAt(offset));
   }
 
   @Override
@@ -192,8 +212,8 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
       protected InternalIndexElement<V> computeNext() {
         if (next == count) return endOfData();
         int offset = next * STRIDE;
-        int value = layout.entries[offset + VALUE];
-        int key = layout.entries[offset + KEY];
+        int value = valueAt(offset);
+        int key = keyOffsetAt(offset);
         int length;
         if (first) {
           first = false;
@@ -202,7 +222,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
           keyBytes = new byte[Math.max(32, length)];
           encoded.get(keyBytes, 0, length);
         } else {
-          int prefix = layout.entries[offset + PREFIX];
+          int prefix = prefixAt(offset);
           length = prefix + value - key;
           if (keyBytes.length < length) {
             keyBytes = Arrays.copyOf(keyBytes, Math.max(length, keyBytes.length * 2));
@@ -214,7 +234,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
             requireNonNull(IndexKey.deserializeKey(ByteBuffer.wrap(keyBytes, 0, length))),
             next - 1,
             value,
-            layout.entries[offset + END]);
+            endAt(offset));
       }
     };
   }

@@ -35,39 +35,13 @@ final class CheckpointIndexImpl<V> extends IndexReadPrototype<V> {
   final Directory directory;
 
   CheckpointIndexImpl(ByteBuffer source, IndexValueSerializer<V> serializer, int interval) {
-    this(source, serializer, interval, false);
-  }
-
-  CheckpointIndexImpl(
-      ByteBuffer source, IndexValueSerializer<V> serializer, int interval, boolean pagedValues) {
-    this(source, serializer, interval, pagedValues, true);
-  }
-
-  CheckpointIndexImpl(
-      ByteBuffer source,
-      IndexValueSerializer<V> serializer,
-      int interval,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(source, serializer, pagedValues, memoizeValues);
+    super(source, serializer);
     checkArgument(interval > 0, "Interval must be positive");
     directory = new Directory(this.source, interval, count == 0);
   }
 
   CheckpointIndexImpl(Directory prepared, IndexValueSerializer<V> serializer) {
-    this(prepared, serializer, false);
-  }
-
-  CheckpointIndexImpl(Directory prepared, IndexValueSerializer<V> serializer, boolean pagedValues) {
-    this(prepared, serializer, pagedValues, true);
-  }
-
-  CheckpointIndexImpl(
-      Directory prepared,
-      IndexValueSerializer<V> serializer,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(prepared.source, serializer, pagedValues, memoizeValues);
+    super(prepared.source, serializer);
     checkArgument(prepared.complete, "Shared directory must be complete");
     directory = prepared;
   }

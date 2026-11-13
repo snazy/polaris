@@ -83,26 +83,13 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
       String variant, ByteBuffer bytes, IndexValueSerializer<V> codec, int interval) {
     if (variant.startsWith("ADAPTIVE_")) {
       return new AdaptiveCheckpointIndexImpl<>(
-          bytes,
-          codec,
-          interval,
-          variant.startsWith("ADAPTIVE_PUBLISHED"),
-          variant.endsWith("_PAGED"),
-          !variant.endsWith("_UNMEMOIZED"));
-    }
-    if (variant.startsWith("OFFSET_")) {
-      return new OffsetCheckpointIndexImpl<>(
-          bytes, codec, variant.endsWith("_PAGED"), !variant.endsWith("_UNMEMOIZED"));
+          bytes, codec, interval, variant.startsWith("ADAPTIVE_PUBLISHED"), keyMemo(variant));
     }
     return switch (variant) {
       case "BASELINE" -> IndexImpl.deserializeStoreIndex(bytes.slice(), codec);
       case "CHECKPOINT" -> new CheckpointIndexImpl<>(bytes, codec, interval);
-      case "CHECKPOINT_PAGED" -> new CheckpointIndexImpl<>(bytes, codec, interval, true);
       case "COMPACT" -> new CompactIndexImpl<>(bytes, codec);
-      case "COMPACT_PAGED" -> new CompactIndexImpl<>(bytes, codec, true);
-      case "CHECKPOINT_UNMEMOIZED" ->
-          new CheckpointIndexImpl<>(bytes, codec, interval, false, false);
-      case "COMPACT_UNMEMOIZED" -> new CompactIndexImpl<>(bytes, codec, false, false);
+      case "OFFSET_PERIODIC", "OFFSET_BINARY" -> new OffsetCheckpointIndexImpl<>(bytes, codec);
       default -> throw new IllegalArgumentException(variant);
     };
   }
@@ -112,41 +99,12 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
   }
 
   Object prepare(String variant, int interval) {
-    if (variant.startsWith("ADAPTIVE_")) {
-      return new AdaptiveCheckpointIndexImpl<>(
-              serialized,
-              OBJ_REF_SERIALIZER,
-              interval,
-              variant.startsWith("ADAPTIVE_PUBLISHED"),
-              variant.endsWith("_PAGED"),
-              !variant.endsWith("_UNMEMOIZED"))
-          .prepare();
-    }
-    if (variant.startsWith("OFFSET_")) {
-      return new OffsetCheckpointIndexImpl<>(
-              serialized,
-              OBJ_REF_SERIALIZER,
-              variant.endsWith("_PAGED"),
-              !variant.endsWith("_UNMEMOIZED"))
-          .prepare();
-    }
-    return switch (variant) {
-      case "BASELINE" -> null;
-      case "CHECKPOINT", "CHECKPOINT_PAGED", "CHECKPOINT_UNMEMOIZED" ->
-          new CheckpointIndexImpl<>(
-                  serialized,
-                  OBJ_REF_SERIALIZER,
-                  interval,
-                  variant.endsWith("_PAGED"),
-                  !variant.endsWith("_UNMEMOIZED"))
-              .prepare();
-      case "COMPACT", "COMPACT_PAGED", "COMPACT_UNMEMOIZED" ->
-          new CompactIndexImpl<>(
-                  serialized,
-                  OBJ_REF_SERIALIZER,
-                  variant.endsWith("_PAGED"),
-                  !variant.endsWith("_UNMEMOIZED"))
-              .layout;
+    if (variant.equals("BASELINE")) return null;
+    return switch (fresh(variant, interval)) {
+      case AdaptiveCheckpointIndexImpl<?> adaptive -> adaptive.prepare();
+      case OffsetCheckpointIndexImpl<?> offset -> offset.prepare();
+      case CheckpointIndexImpl<?> checkpoint -> checkpoint.prepare();
+      case CompactIndexImpl<?> compact -> compact.layout;
       default -> throw new IllegalArgumentException(variant);
     };
   }
@@ -162,29 +120,27 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
           (AdaptiveCheckpointIndexImpl.Snapshot) prepared,
           codec,
           variant.startsWith("ADAPTIVE_PUBLISHED"),
-          variant.endsWith("_PAGED"),
-          !variant.endsWith("_UNMEMOIZED"));
-    }
-    if (variant.startsWith("OFFSET_")) {
-      return new OffsetCheckpointIndexImpl<>(
-          (OffsetCheckpointIndexImpl.Directory) prepared,
-          codec,
-          variant.endsWith("_PAGED"),
-          !variant.endsWith("_UNMEMOIZED"));
+          keyMemo(variant));
     }
     return switch (variant) {
       case "BASELINE" -> fresh(variant, serialized, codec, interval);
       case "CHECKPOINT" ->
           new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec);
       case "COMPACT" -> new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec);
-      case "CHECKPOINT_PAGED" ->
-          new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec, true);
-      case "COMPACT_PAGED" ->
-          new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec, true);
-      case "CHECKPOINT_UNMEMOIZED" ->
-          new CheckpointIndexImpl<>((CheckpointIndexImpl.Directory) prepared, codec, false, false);
-      case "COMPACT_UNMEMOIZED" ->
-          new CompactIndexImpl<>((CompactIndexImpl.Layout) prepared, codec, false, false);
+      case "OFFSET_PERIODIC", "OFFSET_BINARY" ->
+          new OffsetCheckpointIndexImpl<>((OffsetCheckpointIndexImpl.Directory) prepared, codec);
+      default -> throw new IllegalArgumentException(variant);
+    };
+  }
+
+  private static AdaptiveCheckpointIndexImpl.KeyMemo keyMemo(String variant) {
+    return switch (variant) {
+      case "ADAPTIVE_LOCKED", "ADAPTIVE_PUBLISHED" -> AdaptiveCheckpointIndexImpl.KeyMemo.NONE;
+      case "ADAPTIVE_PUBLISHED_PACKED_KEYS" -> AdaptiveCheckpointIndexImpl.KeyMemo.PACKED;
+      case "ADAPTIVE_PUBLISHED_DECODED_KEYS" -> AdaptiveCheckpointIndexImpl.KeyMemo.DECODED;
+      case "ADAPTIVE_PUBLISHED_PACKED_KEYS_VH" -> AdaptiveCheckpointIndexImpl.KeyMemo.PACKED_PAGED;
+      case "ADAPTIVE_PUBLISHED_DECODED_KEYS_VH" ->
+          AdaptiveCheckpointIndexImpl.KeyMemo.DECODED_PAGED;
       default -> throw new IllegalArgumentException(variant);
     };
   }

@@ -25,10 +25,13 @@ import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
 import static org.apache.polaris.persistence.varint.VarInt.varIntLen;
 
 import com.google.common.collect.AbstractIterator;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
 import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.jspecify.annotations.NonNull;
@@ -38,19 +41,53 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
   private final int interval;
   private final boolean publishedReads;
   private final Builder builder;
+  private final KeyMemo keyMemo;
+  private final ConcurrentHashMap<Integer, KeyBlock> keyBlockMap;
+  private final KeyBlock[][] keyBlocks;
+  private static final int BLOCK_PAGE_SHIFT = 6;
+  private static final int BLOCK_PAGE_SIZE = 1 << BLOCK_PAGE_SHIFT;
+  private static final VarHandle BLOCK_PAGE =
+      MethodHandles.arrayElementVarHandle(KeyBlock[][].class);
+  private static final VarHandle BLOCK_SLOT = MethodHandles.arrayElementVarHandle(KeyBlock[].class);
   private volatile Snapshot published;
+
+  enum KeyMemo {
+    NONE,
+    PACKED,
+    DECODED,
+    PACKED_PAGED,
+    DECODED_PAGED;
+
+    boolean paged() {
+      return this == PACKED_PAGED || this == DECODED_PAGED;
+    }
+
+    boolean decoded() {
+      return this == DECODED || this == DECODED_PAGED;
+    }
+  }
+
+  AdaptiveCheckpointIndexImpl(
+      ByteBuffer bytes, IndexValueSerializer<V> codec, int interval, boolean publishedReads) {
+    this(bytes, codec, interval, publishedReads, KeyMemo.NONE);
+  }
 
   AdaptiveCheckpointIndexImpl(
       ByteBuffer bytes,
       IndexValueSerializer<V> codec,
       int interval,
       boolean publishedReads,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(bytes, codec, pagedValues, memoizeValues);
+      KeyMemo keyMemo) {
+    super(bytes, codec);
     checkArgument(interval > 0, "Interval must be positive");
     this.interval = interval;
     this.publishedReads = publishedReads;
+    this.keyMemo = keyMemo;
+    keyBlockMap = keyMemo == KeyMemo.NONE || keyMemo.paged() ? null : new ConcurrentHashMap<>();
+    keyBlocks =
+        keyMemo.paged()
+            ? new KeyBlock[(int) (((long) count + BLOCK_PAGE_SIZE - 1) >>> BLOCK_PAGE_SHIFT)][]
+            : null;
     builder = new Builder();
     builder.nextOffset = bodyOffset;
     builder.complete = count == 0;
@@ -58,15 +95,17 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
   }
 
   AdaptiveCheckpointIndexImpl(
-      Snapshot prepared,
-      IndexValueSerializer<V> codec,
-      boolean publishedReads,
-      boolean pagedValues,
-      boolean memoizeValues) {
-    super(prepared.source, codec, pagedValues, memoizeValues);
+      Snapshot prepared, IndexValueSerializer<V> codec, boolean publishedReads, KeyMemo keyMemo) {
+    super(prepared.source, codec);
     checkArgument(prepared.complete, "Shared directory must be complete");
     interval = prepared.interval;
     this.publishedReads = publishedReads;
+    this.keyMemo = keyMemo;
+    keyBlockMap = keyMemo == KeyMemo.NONE || keyMemo.paged() ? null : new ConcurrentHashMap<>();
+    keyBlocks =
+        keyMemo.paged()
+            ? new KeyBlock[(int) (((long) count + BLOCK_PAGE_SIZE - 1) >>> BLOCK_PAGE_SHIFT)][]
+            : null;
     builder = new Builder();
     builder.ordinals = prepared.ordinals;
     builder.references = prepared.references;
@@ -85,6 +124,27 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
 
   Snapshot directory() {
     return published;
+  }
+
+  int memoizedBlockCount() {
+    if (keyBlocks == null) return keyBlockMap == null ? 0 : keyBlockMap.size();
+    int blocks = 0;
+    for (int i = 0; i < keyBlocks.length; i++) {
+      var page = (KeyBlock[]) BLOCK_PAGE.getVolatile(keyBlocks, i);
+      if (page != null) {
+        for (int slot = 0; slot < page.length; slot++)
+          if (BLOCK_SLOT.getVolatile(page, slot) != null) blocks++;
+      }
+    }
+    return blocks;
+  }
+
+  int memoizedPageCount() {
+    if (keyBlocks == null) return 0;
+    int pages = 0;
+    for (int i = 0; i < keyBlocks.length; i++)
+      if (BLOCK_PAGE.getVolatile(keyBlocks, i) != null) pages++;
+    return pages;
   }
 
   @Override
@@ -271,6 +331,16 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
 
   @Override
   public InternalIndexElement<V> getElement(@NonNull IndexKey key) {
+    if (keyMemo != KeyMemo.NONE) {
+      var state = ensure(key, 0);
+      int anchor = floor(state, key);
+      if (anchor < 0) return null;
+      var block = keyBlock(state, anchor);
+      int slot = block.lowerBound(key);
+      return slot < block.size() && block.key(slot).compareTo(key) == 0
+          ? blockElement(block, slot)
+          : null;
+    }
     var scan = lookup(key);
     while (scan.advance()) {
       record(scan);
@@ -284,6 +354,12 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
   @Override
   InternalIndexElement<V> entryAt(int ordinal) {
     checkArgument(ordinal >= 0 && ordinal < count, "Invalid ordinal");
+    if (keyMemo != KeyMemo.NONE) {
+      var state = ensure(null, ordinal);
+      int found = Arrays.binarySearch(state.ordinals, 0, state.size, ordinal);
+      var block = keyBlock(state, found >= 0 ? found : -found - 2);
+      return blockElement(block, ordinal - block.firstOrdinal);
+    }
     var scan = ordinalCursor(ordinal);
     while (scan.advance()) {
       record(scan);
@@ -323,6 +399,15 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
       protected InternalIndexElement<V> computeNext() {
         if (block.isEmpty()) {
           if (next < 0) return endOfData();
+          if (keyMemo != KeyMemo.NONE) {
+            var state = published;
+            int found = Arrays.binarySearch(state.ordinals, 0, state.size, next);
+            var keys = keyBlock(state, found >= 0 ? found : -found - 2);
+            for (int i = 0; i <= next - keys.firstOrdinal; i++)
+              block.addLast(blockElement(keys, i));
+            next = keys.firstOrdinal - 1;
+            return block.removeLast();
+          }
           var scan = ordinalCursor(next);
           int anchorOrdinal = scan.ordinal + 1;
           while (scan.advance() && scan.ordinal <= next) block.addLast(scan.element());
@@ -331,6 +416,101 @@ final class AdaptiveCheckpointIndexImpl<V> extends IndexReadPrototype<V> {
         return block.removeLast();
       }
     };
+  }
+
+  /** Only point/ordinal/reverse access populates this per-view memo; forward scans do not. */
+  private KeyBlock keyBlock(Snapshot state, int anchor) {
+    if (keyBlocks == null) {
+      int first = state.ordinals[anchor];
+      return keyBlockMap.computeIfAbsent(first, ignored -> buildKeyBlock(state, anchor));
+    }
+    // Directory slots are stable across snapshot growth; native anchors can occur at every entry.
+    int pageIndex = anchor >>> BLOCK_PAGE_SHIFT;
+    var page = (KeyBlock[]) BLOCK_PAGE.getVolatile(keyBlocks, pageIndex);
+    if (page == null) {
+      var created =
+          new KeyBlock[Math.min(BLOCK_PAGE_SIZE, count - (pageIndex << BLOCK_PAGE_SHIFT))];
+      var existing =
+          (KeyBlock[]) BLOCK_PAGE.compareAndExchange(keyBlocks, pageIndex, null, created);
+      page = existing == null ? created : existing;
+    }
+    int slot = anchor & (BLOCK_PAGE_SIZE - 1);
+    var block = (KeyBlock) BLOCK_SLOT.getVolatile(page, slot);
+    if (block != null) return block;
+    var created = buildKeyBlock(state, anchor);
+    // Duplicate construction on a concurrent miss is intentional; only one immutable block wins.
+    var existing = (KeyBlock) BLOCK_SLOT.compareAndExchange(page, slot, null, created);
+    return existing == null ? created : existing;
+  }
+
+  private InternalIndexElement<V> blockElement(KeyBlock block, int slot) {
+    return element(
+        block.key(slot),
+        block.firstOrdinal + slot,
+        block.offsets[slot * 3 + 1],
+        block.offsets[slot * 3 + 2]);
+  }
+
+  private KeyBlock buildKeyBlock(Snapshot state, int anchor) {
+    int first = state.ordinals[anchor];
+    int limit = anchor + 1 < state.size ? state.ordinals[anchor + 1] : count;
+    int capacity = Math.min(interval, limit - first);
+    var offsets = new int[capacity * 3 + 1];
+    var decoded = keyMemo.decoded() ? new IndexKey[capacity] : null;
+    byte[] packed = new byte[0];
+    int used = 0;
+    int size = 0;
+    var scan = scanAt(state, anchor);
+    while (size < capacity && scan.advance()) {
+      // An incomplete directory may not yet contain the next native anchor.
+      if (size != 0 && scan.prefixLength == 0) break;
+      offsets[size * 3] = used;
+      offsets[size * 3 + 1] = scan.valueOffset;
+      offsets[size * 3 + 2] = scan.endOffset;
+      if (decoded != null) decoded[size] = scan.key();
+      else {
+        if (packed.length - used < scan.keyLength)
+          packed =
+              Arrays.copyOf(
+                  packed, Math.max(used + scan.keyLength, Math.max(64, packed.length * 2)));
+        System.arraycopy(scan.keyBytes, 0, packed, used, scan.keyLength);
+        used += scan.keyLength;
+      }
+      size++;
+    }
+    offsets[size * 3] = used;
+    return new KeyBlock(
+        first,
+        Arrays.copyOf(offsets, size * 3 + 1),
+        Arrays.copyOf(packed, used),
+        decoded == null ? null : Arrays.copyOf(decoded, size));
+  }
+
+  /** Fully initialized arrays become immutable before map or CAS publication. */
+  private record KeyBlock(int firstOrdinal, int[] offsets, byte[] packed, IndexKey[] decoded) {
+    int size() {
+      return (offsets.length - 1) / 3;
+    }
+
+    IndexKey key(int slot) {
+      return decoded != null
+          ? decoded[slot]
+          : requireNonNull(
+              IndexKey.deserializeKey(
+                  ByteBuffer.wrap(
+                      packed, offsets[slot * 3], offsets[(slot + 1) * 3] - offsets[slot * 3])));
+    }
+
+    int lowerBound(IndexKey key) {
+      int low = 0;
+      int high = size();
+      while (low < high) {
+        int mid = (low + high) >>> 1;
+        if (key(mid).compareTo(key) < 0) low = mid + 1;
+        else high = mid;
+      }
+      return low;
+    }
   }
 
   /** A private forward cursor; key bytes are overwritten only on its next advance. */
