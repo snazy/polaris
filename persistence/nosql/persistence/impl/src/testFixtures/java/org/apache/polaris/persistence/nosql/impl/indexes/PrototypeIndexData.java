@@ -70,6 +70,18 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
   }
 
   PrototypeIndexData encodedFor(String variant, int interval) {
+    if (variant.startsWith("V2")) {
+      var options =
+          new V2IndexWriter.Options(
+              interval,
+              variant.contains("UNEVEN"),
+              variant.contains("PREFIX")
+                  ? V2IndexWriter.DirectoryEncoding.PREFIX
+                  : V2IndexWriter.DirectoryEncoding.FULL,
+              8);
+      return new PrototypeIndexData(
+          V2IndexWriter.write(fresh("BASELINE", interval), OBJ_REF_SERIALIZER, options), keys);
+    }
     if (!variant.startsWith("OFFSET_")) return this;
     var policy =
         variant.startsWith("OFFSET_BINARY")
@@ -90,6 +102,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
       case "CHECKPOINT" -> new CheckpointIndexImpl<>(bytes, codec, interval);
       case "COMPACT" -> new CompactIndexImpl<>(bytes, codec);
       case "COMPACT3" -> new Compact3IndexImpl<>(bytes, codec);
+      case "V2", "V2_PREFIX", "V2_UNEVEN", "V2_PREFIX_UNEVEN" -> new V2IndexReader<>(bytes, codec);
       case "OFFSET_PERIODIC", "OFFSET_BINARY" -> new OffsetCheckpointIndexImpl<>(bytes, codec);
       default -> throw new IllegalArgumentException(variant);
     };
@@ -101,6 +114,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
 
   Object prepare(String variant, int interval) {
     if (variant.equals("BASELINE")) return null;
+    if (variant.startsWith("V2")) return serialized;
     return switch (fresh(variant, interval)) {
       case AdaptiveCheckpointIndexImpl<?> adaptive -> adaptive.prepare();
       case OffsetCheckpointIndexImpl<?> offset -> offset.prepare();
@@ -117,6 +131,7 @@ record PrototypeIndexData(ByteBuffer serialized, List<IndexKey> keys) {
 
   <V> IndexSpi<V> fromPrepared(
       String variant, Object prepared, IndexValueSerializer<V> codec, int interval) {
+    if (variant.startsWith("V2")) return fresh(variant, (ByteBuffer) prepared, codec, interval);
     if (variant.startsWith("ADAPTIVE_")) {
       return new AdaptiveCheckpointIndexImpl<>(
           (AdaptiveCheckpointIndexImpl.Snapshot) prepared,

@@ -35,7 +35,7 @@ import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
 import org.jspecify.annotations.NonNull;
 
-/** Shared read-contract adapter for the isolated C/D experiments, not a production reader. */
+/** Shared read-contract adapter for isolated index experiments, not a production reader. */
 abstract class IndexReadPrototype<V> implements IndexSpi<V> {
   final ByteBuffer source;
   final IndexValueSerializer<V> serializer;
@@ -50,12 +50,16 @@ abstract class IndexReadPrototype<V> implements IndexSpi<V> {
   private ObjRef objRef;
 
   IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer) {
+    this(bytes, serializer, 1);
+  }
+
+  IndexReadPrototype(ByteBuffer bytes, IndexValueSerializer<V> serializer, int version) {
     source = bytes.slice().asReadOnlyBuffer();
     this.serializer = serializer;
     var header = source.duplicate();
-    checkArgument(header.get() == 1, "Expected v1 index");
+    checkArgument(header.get() == version, "Unexpected index version");
     count = readVarInt(header);
-    checkArgument(count >= 0, "Negative entry count");
+    checkArgument(count >= 0 && (version != 2 || count <= source.limit()), "Invalid entry count");
     bodyOffset = header.position();
     values = new Object[(int) (((long) count + PAGE_SIZE - 1) >>> PAGE_SHIFT)][];
   }

@@ -54,6 +54,7 @@ public class IndexBlockMemoBench {
     @Override
     PrototypeIndexData newData() {
       var original = PrototypeIndexData.create(entries, shape);
+      if (variant.startsWith("V2")) return original.encodedFor(variant, checkpointInterval);
       return new PrototypeIndexData(
           FullKeyCheckpoints.rewrite(
               original.serialized(),
