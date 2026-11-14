@@ -209,20 +209,25 @@ final class V2IndexReader<V> extends IndexReadPrototype<V> {
     int size = endOrdinal(block) - field(block, 1);
     var keys = new IndexKey[size];
     var offsets = new int[Math.multiplyExact(size, 2)];
-    var cursor = new Cursor(block);
-    for (int i = 0; i < size; i++) {
-      checkArgument(cursor.advance(), "Missing block entry");
-      keys[i] = cursor.key();
-      checkArgument(i == 0 || keys[i - 1].compareTo(keys[i]) < 0, "Unsorted block");
-      offsets[i * 2] = cursor.valueOffset;
-      offsets[i * 2 + 1] = cursor.endOffset;
+    var scratch = IndexKeyBufferPool.acquire();
+    try {
+      var cursor = new Cursor(block, scratch);
+      for (int i = 0; i < size; i++) {
+        checkArgument(cursor.advance(), "Missing block entry");
+        keys[i] = cursor.key();
+        checkArgument(i == 0 || keys[i - 1].compareTo(keys[i]) < 0, "Unsorted block");
+        offsets[i * 2] = cursor.valueOffset;
+        offsets[i * 2 + 1] = cursor.endOffset;
+      }
+      checkArgument(
+          block + 1 == blockCount || keys[size - 1].compareTo(directoryKey(block + 1)) < 0,
+          "Overlapping blocks");
+      var built = new Block(keys, offsets);
+      var existing = (Block) BLOCK.compareAndExchange(blocks, block, null, built);
+      return existing == null ? built : existing;
+    } finally {
+      IndexKeyBufferPool.release(scratch);
     }
-    checkArgument(
-        block + 1 == blockCount || keys[size - 1].compareTo(directoryKey(block + 1)) < 0,
-        "Overlapping blocks");
-    var built = new Block(keys, offsets);
-    var existing = (Block) BLOCK.compareAndExchange(blocks, block, null, built);
-    return existing == null ? built : existing;
   }
 
   private long find(IndexKey key) {
@@ -359,6 +364,10 @@ final class V2IndexReader<V> extends IndexReadPrototype<V> {
     IndexKey decoded;
 
     Cursor(int block) {
+      this(block, null);
+    }
+
+    Cursor(int block, ByteBuffer scratch) {
       bytes =
           source
               .duplicate()
@@ -366,7 +375,12 @@ final class V2IndexReader<V> extends IndexReadPrototype<V> {
               .limit(block + 1 == blockCount ? directoryOffset : field(block + 1, 0));
       var initial = serializedDirectoryKey(block);
       keyLength = initial.remaining();
-      if (initial.hasArray() && initial.arrayOffset() == 0) {
+      if (scratch != null) {
+        checkArgument(scratch.arrayOffset() == 0);
+        keyBytes = scratch.array();
+        keyBuffer = scratch;
+        initial.get(keyBytes, 0, keyLength);
+      } else if (initial.hasArray() && initial.arrayOffset() == 0) {
         // Compressed-directory scratch is owned by this cursor; no trimming copy is needed.
         keyBytes = initial.array();
         keyBuffer = initial;

@@ -116,9 +116,13 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
 
   private IndexKey keyAt(int ordinal) {
     var known = cachedKeyAt(ordinal);
-    return known != null
-        ? known
-        : requireNonNull(IndexKey.deserializeKey(serializedKeyAt(ordinal, null)));
+    if (known != null) return known;
+    var scratch = prefixAt(ordinal * STRIDE) == 0 ? null : IndexKeyBufferPool.acquire();
+    try {
+      return requireNonNull(IndexKey.deserializeKey(serializedKeyAt(ordinal, scratch)));
+    } finally {
+      if (scratch != null) IndexKeyBufferPool.release(scratch);
+    }
   }
 
   int memoizedKeyCount() {
@@ -179,8 +183,7 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     if (prefixAt(offset) == 0)
       return source.duplicate().position(keyOffsetAt(offset)).limit(valueAt(offset));
     int length = serializedKeyLength(ordinal);
-    if (scratch == null) scratch = ByteBuffer.allocate(length);
-    reconstructKey(ordinal, scratch.array());
+    reconstructKey(ordinal, requireNonNull(scratch).array());
     return scratch.clear().limit(length);
   }
 
@@ -188,29 +191,30 @@ final class CompactIndexImpl<V> extends IndexReadPrototype<V> {
     int low = 0;
     int high = count - 1;
     ByteBuffer scratch = null;
-    while (low <= high) {
-      int mid = (low + high) >>> 1;
-      var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, mid >>> PAGE_SHIFT);
-      var probe =
-          page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, mid & (PAGE_SIZE - 1));
-      if (probe == null) {
-        if (prefixAt(mid * STRIDE) != 0) {
-          int length = serializedKeyLength(mid);
-          if (scratch == null || scratch.capacity() < length)
-            scratch =
-                ByteBuffer.allocate(
-                    Math.max(length, scratch == null ? 32 : scratch.capacity() * 2));
+    try {
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        var page = (IndexKey[]) KEY_PAGE.getVolatile(searchKeyPages, mid >>> PAGE_SHIFT);
+        var probe =
+            page == null ? null : (IndexKey) KEY_SLOT.getVolatile(page, mid & (PAGE_SIZE - 1));
+        if (probe == null) {
+          if (prefixAt(mid * STRIDE) != 0 && scratch == null)
+            scratch = IndexKeyBufferPool.acquire();
+          probe =
+              memoizeKey(
+                  mid,
+                  requireNonNull(IndexKey.deserializeKey(serializedKeyAt(mid, scratch))),
+                  page);
         }
-        probe =
-            memoizeKey(
-                mid, requireNonNull(IndexKey.deserializeKey(serializedKeyAt(mid, scratch))), page);
+        int compare = probe.compareTo(key);
+        if (compare < 0) low = mid + 1;
+        else if (compare > 0) high = mid - 1;
+        else return mid;
       }
-      int compare = probe.compareTo(key);
-      if (compare < 0) low = mid + 1;
-      else if (compare > 0) high = mid - 1;
-      else return mid;
+      return -low - 1;
+    } finally {
+      if (scratch != null) IndexKeyBufferPool.release(scratch);
     }
-    return -low - 1;
   }
 
   @Override
