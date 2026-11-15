@@ -44,7 +44,19 @@ final class SplitV2Format {
   }
 
   record Options(
-      Layout layout, int blockEntries, V2IndexWriter.DirectoryEncoding directory, int keyRestart) {
+      Layout layout,
+      int blockEntries,
+      V2IndexWriter.DirectoryEncoding directory,
+      int keyRestart,
+      boolean partitionAtPrefix) {
+    Options(
+        Layout layout,
+        int blockEntries,
+        V2IndexWriter.DirectoryEncoding directory,
+        int keyRestart) {
+      this(layout, blockEntries, directory, keyRestart, true);
+    }
+
     Options(Layout layout, int blockEntries, V2IndexWriter.DirectoryEncoding directory) {
       this(layout, blockEntries, directory, GROUP);
     }

@@ -53,6 +53,8 @@ import org.immutables.value.Value;
 /**
  * Generates a configurable set {@link IndexKey}s and test helper functionality to de-serialize
  * indexes using this set of keys.
+ *
+ * @see RepresentativeKeyDataset
  */
 @PolarisImmutable
 public interface KeyIndexTestSet<ELEMENT> {

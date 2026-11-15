@@ -92,7 +92,8 @@ final class SplitV2IndexWriter {
               && shared < keyBuffer.position()
               && first[shared] == keyBuffer.get(shared)) shared++;
         // A cheaper boundary is preferable to widening every old suffix in the block.
-        if (rows.size() >= GROUP
+        if (options.partitionAtPrefix()
+            && rows.size() >= GROUP
             && (long) (prefix - shared) * rows.size() > HEADER + 12L + keyBuffer.position()) {
           addPlan(
               pieces, new BlockPlan<>(null, -1, List.copyOf(rows), null, codec, options, scratch));

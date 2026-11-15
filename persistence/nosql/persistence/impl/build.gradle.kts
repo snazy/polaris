@@ -30,6 +30,8 @@ plugins {
 
 description = "Polaris NoSQL persistence core implementation"
 
+tasks.named<Jar>("jmhJar") { isZip64 = true }
+
 val jcstressRuntime = configurations.create("jcstressRuntime")
 val jcstressMode = providers.gradleProperty("jcstressMode").orElse("quick")
 val jcstressSplitPerActor =
@@ -84,6 +86,7 @@ dependencies {
   testFixturesAnnotationProcessor(project(":polaris-immutables", configuration = "processor"))
 
   testFixturesImplementation(project(":polaris-idgen-api"))
+  testFixturesImplementation(project(":polaris-persistence-nosql-metastore-types"))
   testFixturesImplementation(project(":polaris-persistence-nosql-varint"))
   testFixturesImplementation(libs.guava)
 
