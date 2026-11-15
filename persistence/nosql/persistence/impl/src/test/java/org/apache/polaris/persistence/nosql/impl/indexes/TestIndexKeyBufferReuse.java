@@ -38,7 +38,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 class TestIndexKeyBufferReuse {
   @ParameterizedTest
   @ValueSource(
-      strings = {"COMPACT", "COMPACT3", "V2", "FRONT_ENDS", "FRONT_LENGTHS", "PREFIX_ENDS"})
+      strings = {
+        "COMPACT",
+        "COMPACT3",
+        "V2",
+        "FRONT_ENDS",
+        "FRONT_LENGTHS",
+        "PREFIX_ENDS",
+        "FRONT_PREFIX_ENDS"
+      })
   void decodedKeysSurviveScratchReuse(String variant) {
     var data = PrototypeIndexData.create(129, "HIERARCHICAL");
     var expected = data.fresh("BASELINE", 64);

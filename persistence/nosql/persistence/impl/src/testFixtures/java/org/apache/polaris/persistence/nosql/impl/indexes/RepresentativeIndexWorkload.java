@@ -52,7 +52,8 @@ final class RepresentativeIndexWorkload<V> {
     D3,
     D4,
     PREFIX_ENDS,
-    FRONT_ENDS
+    FRONT_ENDS,
+    FRONT_PREFIX_ENDS
   }
 
   enum History {
@@ -219,9 +220,11 @@ final class RepresentativeIndexWorkload<V> {
     this.values = values;
     options =
         new SplitV2Format.Options(
-            variant == Variant.PREFIX_ENDS
-                ? SplitV2Format.Layout.PREFIX_ENDS
-                : SplitV2Format.Layout.FRONT_ENDS,
+            switch (variant) {
+              case PREFIX_ENDS -> SplitV2Format.Layout.PREFIX_ENDS;
+              case FRONT_PREFIX_ENDS -> SplitV2Format.Layout.FRONT_PREFIX_ENDS;
+              default -> SplitV2Format.Layout.FRONT_ENDS;
+            },
             64,
             V2IndexWriter.DirectoryEncoding.FULL,
             8,
@@ -294,9 +297,11 @@ final class RepresentativeIndexWorkload<V> {
   }
 
   private ByteBuffer encode(IndexSpi<V> index) {
-    return variant == Variant.PREFIX_ENDS || variant == Variant.FRONT_ENDS
-        ? SplitV2IndexWriter.write(index, codec, options)
-        : index.serialize();
+    return switch (variant) {
+      case PREFIX_ENDS, FRONT_ENDS, FRONT_PREFIX_ENDS ->
+          SplitV2IndexWriter.write(index, codec, options);
+      default -> index.serialize();
+    };
   }
 
   IndexSpi<V> fresh() {
@@ -308,7 +313,8 @@ final class RepresentativeIndexWorkload<V> {
       case BASELINE -> IndexImpl.deserializeStoreIndex(bytes.duplicate(), codec);
       case D3 -> new Compact3IndexImpl<>(bytes.duplicate(), codec);
       case D4 -> new CompactIndexImpl<>(bytes.duplicate(), codec);
-      case PREFIX_ENDS, FRONT_ENDS -> new SplitV2IndexReader<>(bytes.duplicate(), codec);
+      case PREFIX_ENDS, FRONT_ENDS, FRONT_PREFIX_ENDS ->
+          new SplitV2IndexReader<>(bytes.duplicate(), codec);
     };
   }
 

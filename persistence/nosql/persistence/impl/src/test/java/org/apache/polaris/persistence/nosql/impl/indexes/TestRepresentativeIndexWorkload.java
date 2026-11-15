@@ -181,6 +181,7 @@ class TestRepresentativeIndexWorkload {
     for (var variant :
         new RepresentativeIndexWorkload.Variant[] {
           RepresentativeIndexWorkload.Variant.FRONT_ENDS,
+          RepresentativeIndexWorkload.Variant.FRONT_PREFIX_ENDS,
           RepresentativeIndexWorkload.Variant.PREFIX_ENDS
         }) {
       var data =

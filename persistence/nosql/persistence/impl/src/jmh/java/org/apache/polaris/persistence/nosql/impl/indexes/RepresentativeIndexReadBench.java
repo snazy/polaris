@@ -103,7 +103,7 @@ public class RepresentativeIndexReadBench {
 
   @State(Scope.Thread)
   public static class Data extends Common {
-    @Param({"BASELINE", "D3", "D4", "PREFIX_ENDS", "FRONT_ENDS"})
+    @Param({"BASELINE", "D3", "D4", "PREFIX_ENDS", "FRONT_ENDS", "FRONT_PREFIX_ENDS"})
     public String variant;
 
     IndexSpi<?> warm;

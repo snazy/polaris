@@ -21,14 +21,15 @@ package org.apache.polaris.persistence.nosql.impl.indexes;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.DESCRIPTOR;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.DIRECTORY_HEADER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.ENDS;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.FRONT_PREFIX;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.GROUP;
-import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.HEADER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.KEY_BYTE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.KEY_WIDE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.LENGTHS;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.Layout;
-import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.MAGIC;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.MODE_SHIFT;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.Options;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.PREFIX;
@@ -37,6 +38,8 @@ import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.VA
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.VALUE_WIDE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.commonPrefix;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.copy;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.fileHeaderSize;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.headerSize;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.putOffset;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.varIntAt;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.width;
@@ -94,7 +97,8 @@ final class SplitV2IndexWriter {
         // A cheaper boundary is preferable to widening every old suffix in the block.
         if (options.partitionAtPrefix()
             && rows.size() >= GROUP
-            && (long) (prefix - shared) * rows.size() > HEADER + 12L + keyBuffer.position()) {
+            && (long) (prefix - shared) * rows.size()
+                > headerSize(PREFIX) + DESCRIPTOR + (long) keyBuffer.position()) {
           addPlan(
               pieces, new BlockPlan<>(null, -1, List.copyOf(rows), null, codec, options, scratch));
           rows.clear();
@@ -150,7 +154,8 @@ final class SplitV2IndexWriter {
     var pieces = planMerge(base, changes, options, scratch);
     var bounded = new ArrayList<Piece<V>>();
     for (var piece : pieces) {
-      if (piece.count > 1 && 15 + varIntLen(piece.count) + pieceUpper(piece, options) > target) {
+      if (piece.count > 1
+          && fileHeaderSize(piece.count) + DIRECTORY_HEADER + pieceUpper(piece, options) > target) {
         // Rare oversized-block fallback: make independent entries, then regroup to the target.
         for (int slot = 0; slot < piece.count; slot++) {
           Row<V> row;
@@ -177,7 +182,8 @@ final class SplitV2IndexWriter {
     long bytes = 0;
     for (var piece : bounded) {
       long added = pieceUpper(piece, options);
-      if (!part.isEmpty() && 15 + varIntLen(count + piece.count) + bytes + added > target) {
+      if (!part.isEmpty()
+          && fileHeaderSize(count + piece.count) + DIRECTORY_HEADER + bytes + added > target) {
         result.add(assemble(base, part, options));
         part.clear();
         count = 0;
@@ -192,7 +198,7 @@ final class SplitV2IndexWriter {
   }
 
   private static long pieceUpper(Piece<?> piece, Options options) {
-    long size = piece.size + 12L + piece.key.remaining();
+    long size = piece.size + (long) DESCRIPTOR + piece.key.remaining();
     if (options.directory() == V2IndexWriter.DirectoryEncoding.PREFIX)
       size += 2L * varIntLen(piece.key.remaining());
     return size;
@@ -255,7 +261,11 @@ final class SplitV2IndexWriter {
     }
     boolean valuesOnly =
         base.blockCount != 0
-            && base.block(block).sharedPrefix() == (options.layout() == Layout.PREFIX_ENDS);
+            && switch (options.layout()) {
+              case PREFIX_ENDS -> base.block(block).sharedPrefix();
+              case FRONT_PREFIX_ENDS -> !base.block(block).sharedPrefix();
+              default -> !base.block(block).sharedPrefix() && !base.block(block).frontPrefix();
+            };
     for (var change : changes) valuesOnly &= change.found >= 0 && change.change.element != null;
     if (valuesOnly) {
       var replacements =
@@ -309,6 +319,7 @@ final class SplitV2IndexWriter {
     final int count;
     final boolean reuseKeys;
     final boolean shared;
+    final boolean frontPrefix;
     final byte[] firstKey;
     final byte[] oldFirstKey;
     final byte[][] freshKeys;
@@ -371,11 +382,22 @@ final class SplitV2IndexWriter {
           }
         } else {
           prefix = firstKey.length;
-          for (int i = 0; i < count; i++) {
+          freshKeys[0] = firstKey;
+          for (int i = 1; i < count; i++) {
             freshKeys[i] = rowKey(i, scratch);
             prefix = Math.min(prefix, commonPrefix(firstKey, freshKeys[i]));
           }
         }
+      } else if (options.layout() == Layout.FRONT_PREFIX_ENDS) {
+        prefix = firstKey.length;
+        if (count > 1) {
+          freshKeys[count - 1] = rowKey(count - 1, scratch);
+          // Sorted IndexKeys determine the block's common encoded prefix at its endpoints.
+          prefix = commonPrefix(firstKey, freshKeys[count - 1]);
+        }
+      }
+      frontPrefix = reuseKeys ? old.frontPrefix() : !shared && prefix > 0;
+      if (!reuseKeys && shared) {
         for (int i = 1; i < count; i++) {
           int length =
               freshKeys[i] != null
@@ -390,30 +412,34 @@ final class SplitV2IndexWriter {
           bytes = Math.addExact(bytes, length - prefix);
           keyEnds[i] = bytes;
         }
-      } else {
+      } else if (!reuseKeys) {
         freshKeys[0] = firstKey;
         for (int i = 1; i < count; i++) {
           int original = original(i), previous = original(i - 1);
           if (old != null
               && !old.sharedPrefix()
+              && old.frontPrefix() == frontPrefix
+              && old.prefix() == prefix
               && original > old.first()
               && previous == original - 1
               && i % options.keyRestart() != 0
               && (int) varIntAt(base.source, base.keyStart(old, original - old.first())) != 0) {
             int slot = original - old.first();
-            bytes += base.keyLimit(old, slot) - base.keyStart(old, slot);
+            freshKeys[i] = null;
+            long range = base.keyRange(old, slot);
+            bytes += (int) range - (int) (range >>> 32);
           } else {
-            freshKeys[i] = rowKey(i, scratch);
+            if (freshKeys[i] == null) freshKeys[i] = rowKey(i, scratch);
             // Recompress repaired successors and redundant old restarts instead of accumulating
             // full-key records across structural edits.
             int p = 0;
             if (i % options.keyRestart() != 0) {
               var previousKey =
                   freshKeys[i - 1] != null ? freshKeys[i - 1] : rowKey(i - 1, scratch);
-              p = commonPrefix(previousKey, freshKeys[i]);
+              p = commonPrefix(previousKey, freshKeys[i]) - prefix;
             }
             prefixes[i] = p;
-            bytes += varIntLen(p) + freshKeys[i].length - p;
+            bytes += varIntLen(p) + freshKeys[i].length - prefix - p;
           }
           keyEnds[i] = bytes;
         }
@@ -461,7 +487,7 @@ final class SplitV2IndexWriter {
         lengthOffsets = null;
       }
       flags =
-          (shared ? PREFIX : 0)
+          (shared ? PREFIX : frontPrefix ? FRONT_PREFIX : 0)
               | (kw == 1 ? KEY_BYTE : kw == 4 ? KEY_WIDE : 0)
               | (vw == 1 ? VALUE_BYTE : vw == 4 ? VALUE_WIDE : 0)
               | (mode << MODE_SHIFT);
@@ -469,7 +495,7 @@ final class SplitV2IndexWriter {
           mode == STRIDE
               ? 0
               : mode == ENDS ? count * vw : 2 + lengthOffsets.length * (vw + 2) + lengths.length;
-      size = Math.addExact(HEADER + (count - 1) * kw + keyBytes + locator, values);
+      size = Math.addExact(headerSize(flags) + (count - 1) * kw + keyBytes + locator, values);
     }
 
     private SplitV2IndexReader<V> source() {
@@ -497,7 +523,8 @@ final class SplitV2IndexWriter {
 
     void write(ByteBuffer output) {
       int start = output.position();
-      output.put((byte) flags).putInt(keyBytes).putShort((short) common);
+      output.put((byte) flags);
+      if (shared || frontPrefix) output.putShort((short) common);
       if (reuseKeys) copy(output, base.source, old.keyTable(), (count - 1) * kw + keyBytes);
       else {
         for (int i = 1; i < count; i++) putOffset(output, keyEnds[i], kw);
@@ -521,14 +548,12 @@ final class SplitV2IndexWriter {
             }
           } else if (freshKeys[i] != null) {
             putVarInt(output, prefixes[i]);
-            output.put(freshKeys[i], prefixes[i], freshKeys[i].length - prefixes[i]);
+            output.put(
+                freshKeys[i], common + prefixes[i], freshKeys[i].length - common - prefixes[i]);
           } else {
             int slot = original - old.first();
-            copy(
-                output,
-                base.source,
-                base.keyStart(old, slot),
-                base.keyLimit(old, slot) - base.keyStart(old, slot));
+            long range = base.keyRange(old, slot);
+            copy(output, base.source, (int) (range >>> 32), (int) range - (int) (range >>> 32));
           }
         }
       }
@@ -561,8 +586,9 @@ final class SplitV2IndexWriter {
       count += piece.count;
       bodies = Math.addExact(bodies, piece.size);
     }
-    int bodyStart = 1 + varIntLen(count) + 8, directory = Math.addExact(bodyStart, bodies);
-    int position = Math.addExact(directory, 6 + Math.multiplyExact(pieces.size(), 12));
+    int bodyStart = fileHeaderSize(count), directory = Math.addExact(bodyStart, bodies);
+    int position =
+        Math.addExact(directory, DIRECTORY_HEADER + Math.multiplyExact(pieces.size(), DESCRIPTOR));
     int[] prefixes = new int[pieces.size()], keyOffsets = new int[pieces.size()];
     ByteBuffer previous = null;
     for (int i = 0; i < pieces.size(); i++) {
@@ -583,7 +609,7 @@ final class SplitV2IndexWriter {
     var output = ByteBuffer.allocate(position);
     output.put((byte) 2);
     putVarInt(output, count);
-    output.putInt(directory).putInt(MAGIC);
+    output.putInt(directory);
     for (var piece : pieces) {
       if (piece.plan != null) piece.plan.write(output);
       else copy(output, base.source, base.blockStart(piece.originalBlock), piece.size);

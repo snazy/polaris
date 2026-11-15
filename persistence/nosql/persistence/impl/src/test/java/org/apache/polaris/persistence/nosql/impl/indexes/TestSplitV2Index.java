@@ -41,11 +41,35 @@ import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class TestSplitV2Index {
+  @Test
+  void encodedCommonPrefixesAreDeterminedBySortedEndpoints() {
+    var encoded = new TreeMap<IndexKey, byte[]>();
+    // Include empty keys, prefix-of-another keys, NUL, and both escaped byte values.
+    for (int length = 0; length <= 4; length++) {
+      for (int bits = 0; bits < (1 << (2 * length)); bits++) {
+        var raw = new byte[length];
+        for (int i = 0; i < length; i++) raw[i] = (byte) ((bits >>> (2 * i)) & 3);
+        var key = IndexKey.key(ByteBuffer.wrap(raw));
+        encoded.put(key, key.serialize(ByteBuffer.allocate(key.serializedSize())).array());
+      }
+    }
+    var keys = new ArrayList<>(encoded.values());
+    for (int first = 0; first < keys.size(); first++) {
+      int prefix = keys.get(first).length;
+      for (int last = first; last < keys.size(); last++) {
+        int endpoints = SplitV2Format.commonPrefix(keys.get(first), keys.get(last));
+        prefix = Math.min(prefix, endpoints);
+        assertThat(endpoints).isEqualTo(prefix);
+      }
+    }
+  }
+
   static Stream<Arguments> cases() {
     return Stream.of("HIERARCHICAL", "WORDS", "UUID", "BINARY")
         .flatMap(shape ->
@@ -159,8 +183,6 @@ class TestSplitV2Index {
         SplitV2IndexWriter.merge(
             new SplitV2IndexReader<>(written, OBJ_REF_SERIALIZER), removeAll, different);
     assertThat(new SplitV2IndexReader<>(empty, OBJ_REF_SERIALIZER).count).isZero();
-    assertThatThrownBy(() -> new V2IndexReader<>(empty, OBJ_REF_SERIALIZER))
-        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new SplitV2IndexReader<>(expected.serialize(), OBJ_REF_SERIALIZER))
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -357,7 +379,7 @@ class TestSplitV2Index {
   @MethodSource("layouts")
   void differentRestartPoliciesAndPrefixDirectoryRemainIndependent(SplitV2Format.Options options) {
     var original = PrototypeIndexData.create(513, "WORDS").fresh("BASELINE", 64);
-    for (int restart : new int[] {16, 32}) {
+    for (int restart : new int[] {4, 8, 16, 32}) {
       var policy =
           new SplitV2Format.Options(
               options.layout(), 16, V2IndexWriter.DirectoryEncoding.PREFIX, restart);
@@ -376,11 +398,14 @@ class TestSplitV2Index {
   }
 
   static Stream<SplitV2Format.Options> frontPolicies() {
-    return Stream.of(SplitV2Format.Layout.FRONT_ENDS, SplitV2Format.Layout.FRONT_LENGTHS)
+    return Stream.of(
+            SplitV2Format.Layout.FRONT_ENDS,
+            SplitV2Format.Layout.FRONT_LENGTHS,
+            SplitV2Format.Layout.FRONT_PREFIX_ENDS)
         .flatMap(layout ->
             Stream.of(V2IndexWriter.DirectoryEncoding.values())
                 .flatMap(directory ->
-                    Stream.of(8, 16, 32)
+                    Stream.of(4, 8, 16, 32)
                         .map(
                             restart -> new SplitV2Format.Options(layout, 64, directory, restart))));
   }
@@ -409,7 +434,7 @@ class TestSplitV2Index {
                     SplitV2Format.commonPrefix(
                         result.encodedKey(b.first() + slot - 1),
                         result.encodedKey(b.first() + slot)))
-                .isZero();
+                .isEqualTo(b.prefix());
         }
       }
     }
@@ -418,7 +443,42 @@ class TestSplitV2Index {
   }
 
   static Stream<SplitV2Format.Options> sharedPolicies() {
-    return layouts().filter(options -> options.layout() == SplitV2Format.Layout.PREFIX_ENDS);
+    return layouts()
+        .filter(options ->
+            options.layout() == SplitV2Format.Layout.PREFIX_ENDS
+                || options.layout() == SplitV2Format.Layout.FRONT_PREFIX_ENDS);
+  }
+
+  @ParameterizedTest
+  @MethodSource("sharedPolicies")
+  void structuralPrefixChangesCrossVarIntWidths(SplitV2Format.Options options) {
+    var original = new IndexImpl<>(OBJ_REF_SERIALIZER);
+    for (int i = 0; i < 30; i++)
+      original.put(
+          IndexKey.key("p".repeat(180) + String.format("/key-%04d", i)), ObjRef.objRef("value", i));
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var initial = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    assertThat(initial.block(0).prefix()).isGreaterThan(127);
+    var outlier = IndexKey.key("a");
+    original.put(outlier, ObjRef.objRef("outlier", 999));
+    bytes =
+        SplitV2IndexWriter.merge(
+            initial,
+            List.of(
+                new SplitV2IndexWriter.Change<>(
+                    outlier, indexElement(outlier, original.get(outlier)))),
+            options);
+    var expanded = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    assertThat(expanded.block(0).prefix()).isZero();
+    verify(original, expanded);
+    original.remove(outlier);
+    bytes =
+        SplitV2IndexWriter.merge(
+            expanded, List.of(new SplitV2IndexWriter.Change<ObjRef>(outlier, null)), options);
+    var compacted = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    assertThat(compacted.block(0).prefix()).isGreaterThan(127);
+    verify(original, compacted);
+    verify(original, initial);
   }
 
   @ParameterizedTest
@@ -440,6 +500,242 @@ class TestSplitV2Index {
     var recovered = new SplitV2IndexReader<>(removed, OBJ_REF_SERIALIZER);
     assertThat(recovered.block(0).prefix()).isGreaterThan(withOutlier.block(0).prefix());
     verify(original, recovered);
+  }
+
+  @ParameterizedTest
+  @MethodSource("layouts")
+  void compactHeadersAndImplicitKeyPayloadSize(SplitV2Format.Options options) {
+    var original = new IndexImpl<>(OBJ_REF_SERIALIZER);
+    var empty = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    assertThat(empty.remaining()).isEqualTo(12);
+    var emptyReader = new SplitV2IndexReader<>(empty, OBJ_REF_SERIALIZER);
+    assertThat(emptyReader.directoryOffset).isEqualTo(SplitV2Format.fileHeaderSize(0));
+    assertThat(emptyReader.count).isZero();
+    var key = IndexKey.key("common/key");
+    original.add(indexElement(key, null));
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var block = reader.block(0);
+    int flags = Byte.toUnsignedInt(bytes.get(block.start()));
+    int header =
+        options.layout() == SplitV2Format.Layout.PREFIX_ENDS
+                || options.layout() == SplitV2Format.Layout.FRONT_PREFIX_ENDS
+            ? 3
+            : 1;
+    assertThat(SplitV2Format.headerSize(flags)).isEqualTo(header);
+    assertThat(block.keyTable() - block.start()).isEqualTo(header);
+    assertThat(block.keyBytes()).isZero();
+    assertThat(block.keyPayload()).isEqualTo(block.valueMeta());
+    assertThat(bytes.remaining())
+        .isEqualTo(
+            SplitV2Format.fileHeaderSize(1)
+                + header
+                + OBJ_REF_SERIALIZER.serializedSize(null)
+                + SplitV2Format.DIRECTORY_HEADER
+                + SplitV2Format.DESCRIPTOR
+                + key.serializedSize()
+                + (options.directory() == V2IndexWriter.DirectoryEncoding.PREFIX
+                    ? 1 + varIntLen(key.serializedSize())
+                    : 0));
+    verify(original, reader);
+  }
+
+  @ParameterizedTest
+  @MethodSource("sharedPolicies")
+  void encodedBinaryAndLongUrlPrefixesSurviveGrowthAndShrink(SplitV2Format.Options options) {
+    for (boolean binary : new boolean[] {false, true}) {
+      var original = new IndexImpl<>(OBJ_REF_SERIALIZER);
+      String root = "https://example.org/warehouse/" + "segment/".repeat(55);
+      for (int i = 0; i < 41; i++) {
+        var key =
+            binary
+                ? IndexKey.key(ByteBuffer.wrap(new byte[] {0, 1, 0, 1, (byte) i, 0}))
+                : IndexKey.key(root + String.format("%04d", i));
+        original.add(indexElement(key, i % 5 == 0 ? null : ObjRef.objRef("value", i)));
+      }
+      var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+      var saved = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+      var snapshotKeys = List.copyOf(original.asKeyList());
+      for (int round = 0; round < 3; round++) {
+        var changes = new TreeMap<IndexKey, InternalIndexElement<ObjRef>>();
+        var keys = original.asKeyList();
+        for (int slot : new int[] {0, 7, 8, 15, 16, 24}) {
+          var key = keys.get(slot);
+          changes.put(key, round == 1 ? indexElement(key, null) : null);
+        }
+        var inserted =
+            binary
+                ? IndexKey.key(ByteBuffer.wrap(new byte[] {0, 1, 0, (byte) round, 127}))
+                : IndexKey.key(root.substring(0, root.length() - (round + 1) * 8) + "new" + round);
+        changes.put(inserted, indexElement(inserted, ObjRef.objRef("inserted", round + 500)));
+        var pending = new ArrayList<SplitV2IndexWriter.Change<ObjRef>>();
+        changes.forEach((key, element) -> {
+          pending.add(new SplitV2IndexWriter.Change<>(key, element));
+          if (element == null) original.remove(key);
+          else original.add(element);
+        });
+        bytes =
+            SplitV2IndexWriter.merge(
+                new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER), pending, options);
+        verify(original, new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER));
+      }
+      assertThat(saved.asKeyList()).containsExactlyElementsOf(snapshotKeys);
+      for (int i = 0; i < snapshotKeys.size(); i++)
+        assertThat(saved.get(snapshotKeys.get(i)))
+            .isEqualTo(i % 5 == 0 ? null : ObjRef.objRef("value", i));
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("frontPolicies")
+  void restartRecordsStoreOnlyTheSuffixAfterCommonPrefix(SplitV2Format.Options options) {
+    var original = new IndexImpl<>(OBJ_REF_SERIALIZER);
+    String root = "https://example.org/warehouse/" + "namespace/".repeat(30);
+    for (int i = 0; i < 41; i++)
+      original.put(IndexKey.key(root + String.format("%04d", i)), ObjRef.objRef("value", i));
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var block = reader.block(0);
+    assertThat(block.frontPrefix())
+        .isEqualTo(options.layout() == SplitV2Format.Layout.FRONT_PREFIX_ENDS);
+    for (int slot = options.keyRestart(); slot < block.count(); slot += options.keyRestart()) {
+      int start = reader.keyStart(block, slot);
+      long record = SplitV2Format.varIntAt(bytes, start);
+      assertThat((int) record).isZero();
+      var key = reader.encodedKey(slot);
+      assertThat(
+              bytes.slice(
+                  (int) (record >>> 32), reader.keyLimit(block, slot) - (int) (record >>> 32)))
+          .isEqualTo(ByteBuffer.wrap(key, block.prefix(), key.length - block.prefix()));
+    }
+    verify(original, new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER));
+  }
+
+  @ParameterizedTest
+  @MethodSource("layouts")
+  void rejectsInvalidFlagsAndTruncatedKeyTables(SplitV2Format.Options options) {
+    var original = new IndexImpl<>(OBJ_REF_SERIALIZER);
+    original.add(indexElement(IndexKey.key("common/a"), null));
+    original.add(indexElement(IndexKey.key("common/b"), null));
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var block = reader.block(0);
+    int flags = Byte.toUnsignedInt(bytes.get(block.start()));
+    for (int invalid :
+        new int[] {
+          flags | SplitV2Format.PREFIX | SplitV2Format.FRONT_PREFIX,
+          flags | SplitV2Format.KEY_BYTE | SplitV2Format.KEY_WIDE,
+          flags | SplitV2Format.VALUE_BYTE | SplitV2Format.VALUE_WIDE,
+          flags | (3 << SplitV2Format.MODE_SHIFT)
+        }) {
+      var damaged = ByteBuffer.allocate(bytes.remaining()).put(bytes.duplicate()).flip();
+      damaged.put(block.start(), (byte) invalid);
+      assertThatThrownBy(() -> new SplitV2IndexReader<>(damaged, OBJ_REF_SERIALIZER).block(0))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+    assertThat(block.keyWidth()).isEqualTo(1);
+    var damaged = ByteBuffer.allocate(bytes.remaining()).put(bytes.duplicate()).flip();
+    damaged.put(block.keyTable(), (byte) 255);
+    assertThatThrownBy(() -> new SplitV2IndexReader<>(damaged, OBJ_REF_SERIALIZER).block(0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Truncated key area");
+    damaged.put(block.keyTable(), (byte) 0);
+    damaged.putInt(reader.bodyOffset, 0);
+    assertThatThrownBy(() -> new SplitV2IndexReader<>(damaged, OBJ_REF_SERIALIZER))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid directory");
+  }
+
+  @ParameterizedTest
+  @MethodSource("layouts")
+  void malformedIntermediateKeyBoundsAreRejectedOnAccess(SplitV2Format.Options options) {
+    var original = PrototypeIndexData.create(16, "HIERARCHICAL").fresh("BASELINE", 64);
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var block = reader.block(0);
+    int secondEnd =
+        SplitV2Format.offset(bytes, block.keyTable() + block.keyWidth(), block.keyWidth());
+    for (boolean outside : new boolean[] {true, false}) {
+      var damaged = ByteBuffer.allocate(bytes.remaining()).put(bytes.duplicate()).flip();
+      SplitV2Format.putOffset(
+          damaged.duplicate().position(block.keyTable()),
+          outside ? block.keyBytes() + 1 : secondEnd + 1,
+          block.keyWidth());
+      var invalid = new SplitV2IndexReader<>(damaged, OBJ_REF_SERIALIZER);
+      assertThatThrownBy(() -> invalid.encodedKey(outside ? 1 : 2))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("frontPolicies")
+  void oversizedFrontPrefixIsRejectedOnAccess(SplitV2Format.Options options) {
+    var original = PrototypeIndexData.create(16, "HIERARCHICAL").fresh("BASELINE", 64);
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var damaged = ByteBuffer.allocate(bytes.remaining()).put(bytes.duplicate()).flip();
+    putVarInt(damaged.duplicate().position(reader.keyStart(reader.block(0), 1)), Integer.MAX_VALUE);
+    var invalid = new SplitV2IndexReader<>(damaged, OBJ_REF_SERIALIZER);
+    assertThatThrownBy(() -> invalid.encodedKey(1)).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @ParameterizedTest
+  @MethodSource("sharedPolicies")
+  void mixedBlockKeyModesKeepTheirOwnHeaders(SplitV2Format.Options options) {
+    var original = PrototypeIndexData.create(41, "HIERARCHICAL").fresh("BASELINE", 64);
+    var plain = new SplitV2Format.Options(SplitV2Format.Layout.FRONT_ENDS, 8, options.directory());
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, plain);
+    int ordinal = 9;
+    for (var layout :
+        new SplitV2Format.Layout[] {
+          SplitV2Format.Layout.PREFIX_ENDS, SplitV2Format.Layout.FRONT_PREFIX_ENDS
+        }) {
+      var key = original.asKeyList().get(ordinal);
+      var policy = new SplitV2Format.Options(layout, 8, options.directory());
+      bytes =
+          SplitV2IndexWriter.merge(
+              new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER),
+              List.of(new SplitV2IndexWriter.Change<ObjRef>(key, null)),
+              policy);
+      original.remove(key);
+      ordinal += 15;
+    }
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var modes = new ArrayList<String>();
+    for (int i = 0; i < reader.blockCount; i++) {
+      var block = reader.block(i);
+      modes.add(block.sharedPrefix() ? "PREFIX" : block.frontPrefix() ? "HYBRID" : "FRONT");
+    }
+    assertThat(modes).contains("FRONT", "PREFIX", "HYBRID");
+    verify(original, reader);
+  }
+
+  @ParameterizedTest
+  @MethodSource("sharedPolicies")
+  void zeroPrefixFallbackStaysFrontForValueOnlyChanges(SplitV2Format.Options options) {
+    if (options.layout() != SplitV2Format.Layout.FRONT_PREFIX_ENDS) return;
+    var original = PrototypeIndexData.create(41, "HIERARCHICAL").fresh("BASELINE", 64);
+    var outlier = IndexKey.key("a");
+    original.put(outlier, ObjRef.objRef("first", 100));
+    var bytes = SplitV2IndexWriter.write(original, OBJ_REF_SERIALIZER, options);
+    var reader = new SplitV2IndexReader<>(bytes, OBJ_REF_SERIALIZER);
+    var block = reader.block(0);
+    assertThat(block.prefix()).isZero();
+    assertThat(block.frontPrefix()).isFalse();
+    assertThat(block.keyTable() - block.start()).isEqualTo(1);
+    var value = ObjRef.objRef("longer replacement", 101);
+    var updated =
+        SplitV2IndexWriter.merge(
+            reader,
+            List.of(new SplitV2IndexWriter.Change<>(outlier, indexElement(outlier, value))),
+            options);
+    var next = new SplitV2IndexReader<>(updated, OBJ_REF_SERIALIZER);
+    var nextBlock = next.block(0);
+    assertThat(nextBlock.frontPrefix()).isFalse();
+    assertThat(updated.slice(nextBlock.keyTable(), nextBlock.valueMeta() - nextBlock.keyTable()))
+        .isEqualTo(bytes.slice(block.keyTable(), block.valueMeta() - block.keyTable()));
+    original.put(outlier, value);
+    verify(original, next);
   }
 
   private static void verify(IndexSpi<ObjRef> expected, SplitV2IndexReader<ObjRef> actual) {

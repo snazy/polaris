@@ -19,13 +19,17 @@
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.polaris.persistence.varint.VarInt.varIntLen;
 
 import java.nio.ByteBuffer;
 
 /** Shared wire mechanics for the isolated greenfield V2 experiments, not a production format. */
 final class SplitV2Format {
-  static final int MAGIC = 0x53505632;
-  static final int HEADER = 7;
+  static final int HEADER = 1;
+  static final int DIRECTORY_HEADER = 6;
+  static final int DESCRIPTOR = 12;
+  static final int DIRECTORY_POINTER = 4;
+  static final int FRONT_PREFIX = 128;
   static final int GROUP = 8;
   static final int PREFIX = 1;
   static final int KEY_WIDE = 2;
@@ -40,6 +44,7 @@ final class SplitV2Format {
   enum Layout {
     FRONT_ENDS,
     FRONT_LENGTHS,
+    FRONT_PREFIX_ENDS,
     PREFIX_ENDS
   }
 
@@ -68,6 +73,14 @@ final class SplitV2Format {
   }
 
   private SplitV2Format() {}
+
+  static int headerSize(int flags) {
+    return HEADER + ((flags & (PREFIX | FRONT_PREFIX)) == 0 ? 0 : 2);
+  }
+
+  static int fileHeaderSize(int count) {
+    return 1 + varIntLen(count) + DIRECTORY_POINTER;
+  }
 
   static int width(int size) {
     return size <= 255 ? 1 : size <= 65535 ? 2 : 4;

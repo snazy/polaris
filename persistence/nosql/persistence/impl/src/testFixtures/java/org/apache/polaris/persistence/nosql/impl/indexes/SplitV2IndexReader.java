@@ -20,19 +20,21 @@ package org.apache.polaris.persistence.nosql.impl.indexes;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.DIRECTORY_POINTER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.ENDS;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.FRONT_PREFIX;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.GROUP;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.HEADER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.KEY_BYTE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.KEY_WIDE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.LENGTHS;
-import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.MAGIC;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.MODE_SHIFT;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.PREFIX;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.STRIDE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.VALUE_BYTE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.VALUE_WIDE;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.copy;
+import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.headerSize;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.offset;
 import static org.apache.polaris.persistence.nosql.impl.indexes.SplitV2Format.varIntAt;
 import static org.apache.polaris.persistence.varint.VarInt.readVarInt;
@@ -79,7 +81,8 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
       int lengths,
       int values,
       int stride,
-      boolean sharedPrefix) {}
+      boolean sharedPrefix,
+      boolean frontPrefix) {}
 
   static final class Scratch {
     ByteBuffer buffer;
@@ -103,11 +106,9 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
 
   SplitV2IndexReader(ByteBuffer bytes, IndexValueSerializer<V> codec) {
     super(bytes, codec, 2);
-    checkArgument(
-        source.remaining() >= bodyOffset + 8 && source.getInt(bodyOffset + 4) == MAGIC,
-        "Not a separated V2 layout");
+    checkArgument(source.remaining() >= bodyOffset + DIRECTORY_POINTER, "Truncated V2 header");
     directoryOffset = source.getInt(bodyOffset);
-    int body = bodyOffset + 8;
+    int body = bodyOffset + DIRECTORY_POINTER;
     checkArgument(
         directoryOffset >= body && directoryOffset <= source.limit() - 6, "Invalid directory");
     blockCount = source.getInt(directoryOffset);
@@ -210,22 +211,25 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
     int start = blockStart(index), end = blockEnd(index), n = blockEntries(index);
     checkArgument(n > 0 && n <= 4096 && end - start >= HEADER, "Invalid block");
     int flags = Byte.toUnsignedInt(source.get(start));
-    int keyBytes = source.getInt(start + 1),
-        prefix = Short.toUnsignedInt(source.getShort(start + 5));
+    int header = headerSize(flags);
+    checkArgument(end - start >= header, "Truncated block header");
+    int prefix = header == HEADER ? 0 : Short.toUnsignedInt(source.getShort(start + 1));
     int mode = (flags >>> MODE_SHIFT) & 3;
     checkArgument(
-        (flags & ~127) == 0
+        (flags & (PREFIX | FRONT_PREFIX)) != (PREFIX | FRONT_PREFIX)
             && (flags & (KEY_BYTE | KEY_WIDE)) != (KEY_BYTE | KEY_WIDE)
             && (flags & (VALUE_BYTE | VALUE_WIDE)) != (VALUE_BYTE | VALUE_WIDE)
             && mode <= STRIDE
-            && keyBytes >= 0
             && prefix <= IndexImpl.MAX_KEY_BYTES
-            && ((flags & PREFIX) != 0 || prefix == 0),
+            && ((flags & FRONT_PREFIX) == 0 || prefix > 0),
         "Invalid block flags");
     int kw = (flags & KEY_BYTE) != 0 ? 1 : (flags & KEY_WIDE) == 0 ? 2 : 4;
     int vw = (flags & VALUE_BYTE) != 0 ? 1 : (flags & VALUE_WIDE) == 0 ? 2 : 4;
-    int keyTable = start + HEADER;
+    int keyTable = start + header;
     long payload = (long) keyTable + (long) (n - 1) * kw;
+    checkArgument(payload <= end, "Truncated key table");
+    int keyBytes = n == 1 ? 0 : offset(source, (int) payload - kw, kw);
+    checkArgument(keyBytes >= 0, "Invalid key size");
     long meta = payload + keyBytes;
     checkArgument(meta <= end, "Truncated key area");
     int keyPayload = (int) payload, valueMeta = (int) meta, lengths = 0, values;
@@ -257,25 +261,32 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
             lengths,
             values,
             stride,
-            (flags & PREFIX) != 0);
-    checkArgument(n == 1 ? keyBytes == 0 : keyEnd(built, n - 1) == keyBytes, "Key size mismatch");
+            (flags & PREFIX) != 0,
+            (flags & FRONT_PREFIX) != 0);
     checkArgument((int) valueRange(built, n - 1) == end, "Value size mismatch");
     var previous = (Block) SLOT.compareAndExchange(headers, index, null, built);
     return previous == null ? built : previous;
   }
 
-  int keyEnd(Block block, int slot) {
+  private int keyEnd(Block block, int slot) {
     return slot == 0
         ? 0
         : offset(source, block.keyTable + (slot - 1) * block.keyWidth, block.keyWidth);
   }
 
   int keyStart(Block block, int slot) {
+    // Restart probes only need the start; keyRange validates records before reconstruction/copying.
     return block.keyPayload + keyEnd(block, slot - 1);
   }
 
   int keyLimit(Block block, int slot) {
-    return block.keyPayload + keyEnd(block, slot);
+    return (int) keyRange(block, slot);
+  }
+
+  long keyRange(Block block, int slot) {
+    int start = keyEnd(block, slot - 1), end = keyEnd(block, slot);
+    checkArgument(start >= 0 && end >= start && end <= block.keyBytes, "Invalid key bounds");
+    return ((long) (block.keyPayload + start) << 32) | (block.keyPayload + end);
   }
 
   long valueRange(Block block, int slot) {
@@ -382,24 +393,30 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
     if (slot == 0 || b.sharedPrefix) {
       int prefix = slot == 0 ? first.remaining() : b.prefix;
       checkArgument(prefix <= first.remaining(), "Invalid shared prefix");
-      int suffix = slot == 0 ? 0 : keyLimit(b, slot) - keyStart(b, slot);
+      long range = slot == 0 ? 0 : keyRange(b, slot);
+      int suffix = (int) range - (int) (range >>> 32);
       scratch.ensure(prefix + suffix);
       output = scratch.buffer;
       copy(output, first, 0, prefix);
-      if (slot != 0) copy(output, source, keyStart(b, slot), suffix);
+      if (slot != 0) copy(output, source, (int) (range >>> 32), suffix);
     } else {
       int restartSlot = slot;
       while (restartSlot > 0 && (int) varIntAt(source, keyStart(b, restartSlot)) != 0)
         restartSlot--;
-      if (restartSlot == 0) {
-        scratch.ensure(first.remaining());
+      int common = b.frontPrefix ? b.prefix : 0;
+      checkArgument(common <= first.remaining(), "Invalid common prefix");
+      int initial = restartSlot == 0 ? first.remaining() : common;
+      if (initial > 0) {
+        scratch.ensure(initial);
         output = scratch.buffer;
-        copy(output, first, 0, first.remaining());
+        copy(output, first, 0, initial);
       }
       for (int i = Math.max(1, restartSlot); i <= slot; i++) {
-        int start = keyStart(b, i), limit = keyLimit(b, i);
+        long range = keyRange(b, i);
+        int start = (int) (range >>> 32), limit = (int) range;
         long record = varIntAt(source, start);
-        int prefix = (int) record;
+        // Both terms are nonnegative; overflow is negative and rejected below.
+        int prefix = common + (int) record;
         int suffixAt = (int) (record >>> 32), suffix = limit - suffixAt;
         checkArgument(
             prefix >= 0 && prefix <= output.position() && suffix > 0, "Invalid front-coded key");
@@ -422,7 +439,14 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
   }
 
   byte[] copyEncodedKey(int ordinal, Scratch scratch) {
-    var bytes = encodedKey(ordinal, scratch);
+    var key = cached(ordinal);
+    ByteBuffer bytes;
+    if (key == null) bytes = encodedKey(ordinal, scratch);
+    else {
+      scratch.buffer.clear();
+      scratch.ensure(key.serializedSize());
+      bytes = key.serialize(scratch.buffer).flip();
+    }
     var result = new byte[bytes.remaining()];
     bytes.get(result);
     return result;
@@ -531,14 +555,16 @@ final class SplitV2IndexReader<V> extends IndexReadPrototype<V> {
         if (!reverse || key == null) {
           ByteBuffer encoded;
           if (sequential) {
-            long record = b.sharedPrefix ? 0 : varIntAt(source, keyStart(b, slot));
-            int prefix = b.sharedPrefix ? b.prefix : (int) record;
+            long keyRange = keyRange(b, slot);
+            int keyStart = (int) (keyRange >>> 32);
+            long record = b.sharedPrefix ? 0 : varIntAt(source, keyStart);
+            int prefix = b.sharedPrefix ? b.prefix : (b.frontPrefix ? b.prefix : 0) + (int) record;
             var output = scratch.buffer;
             int previousLength = output.limit();
             checkArgument(prefix <= previousLength, "Invalid key cursor");
             output.limit(output.capacity()).position(previousLength);
-            int suffixAt = b.sharedPrefix ? keyStart(b, slot) : (int) (record >>> 32);
-            int suffix = keyLimit(b, slot) - suffixAt;
+            int suffixAt = b.sharedPrefix ? keyStart : (int) (record >>> 32);
+            int suffix = (int) keyRange - suffixAt;
             scratch.ensure(prefix + suffix);
             output = scratch.buffer;
             output.position(prefix);
