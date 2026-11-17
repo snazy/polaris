@@ -20,24 +20,16 @@ package org.apache.polaris.persistence.nosql.impl.indexes;
 
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
-import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.newStoreIndex;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.polaris.persistence.nosql.api.index.IndexKey;
-import org.apache.polaris.persistence.nosql.api.index.IndexValueSerializer;
 import org.apache.polaris.persistence.varint.VarInt;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 final class ImmutableEmptyIndexImpl<V> implements IndexSpi<V> {
-
-  private final IndexValueSerializer<V> serializer;
-
-  ImmutableEmptyIndexImpl(IndexValueSerializer<V> serializer) {
-    this.serializer = serializer;
-  }
 
   @Override
   public boolean hasElements() {
@@ -55,11 +47,6 @@ final class ImmutableEmptyIndexImpl<V> implements IndexSpi<V> {
   @Override
   public boolean isLoaded() {
     return true;
-  }
-
-  @Override
-  public IndexSpi<V> asMutableIndex() {
-    return newStoreIndex(serializer);
   }
 
   @Override

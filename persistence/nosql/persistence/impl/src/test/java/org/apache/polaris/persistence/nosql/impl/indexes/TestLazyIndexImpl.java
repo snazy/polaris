@@ -104,7 +104,7 @@ public class TestLazyIndexImpl {
   @MethodSource("lazyCalls")
   void calls(Consumer<IndexSpi<ObjRef>> invoker, String ignore) {
     var checker = new Checker();
-    var lazyIndex = lazyStoreIndex(checker, null, null);
+    var lazyIndex = lazyStoreIndex(checker, null, null, true);
 
     soft.assertThat(checker.called).hasValue(0);
     invoker.accept(lazyIndex);
@@ -117,7 +117,7 @@ public class TestLazyIndexImpl {
   @MethodSource("lazyCalls")
   void fails(Consumer<IndexSpi<ObjRef>> invoker, String ignore) {
     var checker = new FailChecker();
-    var lazyIndex = lazyStoreIndex(checker, null, null);
+    var lazyIndex = lazyStoreIndex(checker, null, null, true);
 
     soft.assertThat(checker.called).hasValue(0);
     soft.assertThatThrownBy(() -> invoker.accept(lazyIndex))
@@ -133,11 +133,12 @@ public class TestLazyIndexImpl {
   @Test
   public void stateRelated() {
     var index = newStoreIndex(OBJ_REF_SERIALIZER);
-    var lazyIndex = lazyStoreIndex(() -> index, null, null);
+    var lazyIndex = lazyStoreIndex(() -> index, null, null, true);
 
-    soft.assertThat(lazyIndex.isMutable()).isFalse();
-    soft.assertThat(lazyIndex.asMutableIndex()).isSameAs(index);
+    soft.assertThat(lazyIndex.isLoaded()).isFalse();
     soft.assertThat(lazyIndex.isMutable()).isTrue();
+    soft.assertThat(lazyIndex.mutableStripeForKey(key("foo"))).isSameAs(index);
+    soft.assertThat(lazyIndex.isLoaded()).isTrue();
   }
 
   @ParameterizedTest
@@ -147,7 +148,7 @@ public class TestLazyIndexImpl {
     var base = indexTestSet.keyIndex();
     var expectedSplits = base.splitByTargetSize(targetSize);
 
-    var index = lazyStoreIndex(() -> base, base.first(), base.last());
+    var index = lazyStoreIndex(() -> base, base.first(), base.last(), true);
 
     var splits = index.splitByTargetSize(targetSize);
 
@@ -174,9 +175,10 @@ public class TestLazyIndexImpl {
     }
 
     var serialized = base.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
-    var lazyIndex = lazyStoreIndex(() -> deserialized, deserialized.first(), deserialized.last());
+    var lazyIndex =
+        lazyStoreIndex(() -> deserialized, deserialized.first(), deserialized.last(), true);
 
     soft.assertThat(lazyIndex.splitByTargetSize(serialized.remaining()))
         .containsExactly(deserialized);
@@ -189,36 +191,36 @@ public class TestLazyIndexImpl {
     var last = key("zzz");
     index.add(indexElement(first, randomObjId()));
     index.add(indexElement(last, randomObjId()));
-    var lazyIndex = lazyStoreIndex(() -> index, first, last);
+    var lazyIndex = lazyStoreIndex(() -> index, first, last, true);
 
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
 
     soft.assertThat(lazyIndex.first()).isEqualTo(first);
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
 
     soft.assertThat(lazyIndex.last()).isEqualTo(last);
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
 
     soft.assertThat(lazyIndex.containsElement(first)).isTrue();
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
 
     soft.assertThat(lazyIndex.containsElement(last)).isTrue();
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
   }
 
   @Test
@@ -228,12 +230,12 @@ public class TestLazyIndexImpl {
     var last = key("zzz");
     index.add(indexElement(first, randomObjId()));
     index.add(indexElement(last, randomObjId()));
-    var lazyIndex = lazyStoreIndex(() -> index, null, null);
+    var lazyIndex = lazyStoreIndex(() -> index, null, null, true);
 
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
-        .containsExactly(false, false, false);
+        .containsExactly(false, false, true);
 
     soft.assertThat(lazyIndex.first()).isEqualTo(first);
     soft.assertThat(lazyIndex)
@@ -241,7 +243,7 @@ public class TestLazyIndexImpl {
         .extracting(IndexSpi::isLoaded, IndexSpi::isModified, IndexSpi::isMutable)
         .containsExactly(true, true, true);
 
-    lazyIndex = lazyStoreIndex(() -> index, null, null);
+    lazyIndex = lazyStoreIndex(() -> index, null, null, true);
     soft.assertThat(lazyIndex.last()).isEqualTo(last);
     soft.assertThat(lazyIndex)
         .asInstanceOf(type(IndexSpi.class))

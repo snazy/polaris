@@ -95,7 +95,7 @@ public class TestIndexImpl {
     keys.stream().map(IndexKey::key).map(k -> indexElement(k, randomObjId())).forEach(index::add);
 
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
     soft.assertThat(deserialized.asKeyList()).containsExactlyElementsOf(index.asKeyList());
     soft.assertThat(deserialized).containsExactlyElementsOf(index);
@@ -115,7 +115,7 @@ public class TestIndexImpl {
     var keyList = segment.asKeyList();
 
     var serialized = segment.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
     for (var i = keyList.size() - 1; i >= 0; i--) {
       var key = keyList.get(i);
@@ -128,7 +128,7 @@ public class TestIndexImpl {
     var segment = refs20();
 
     var serialized = segment.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     soft.assertThat(deserialized.asKeyList()).containsExactlyElementsOf(segment.asKeyList());
     soft.assertThat(deserialized).isEqualTo(segment);
   }
@@ -138,7 +138,7 @@ public class TestIndexImpl {
     var segment = refs20();
 
     var serialized = segment.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     ((IndexImpl<ObjRef>) deserialized).setModified();
     var serialized2 = deserialized.serialize();
 
@@ -150,7 +150,7 @@ public class TestIndexImpl {
     var segment = refs20();
 
     var serialized = segment.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     var serialized2 = deserialized.serialize();
 
     soft.assertThat(serialized2).isEqualTo(serialized);
@@ -178,7 +178,7 @@ public class TestIndexImpl {
     }
 
     var serialized = deserialized.serialize();
-    var reserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var reserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     soft.assertThat(reserialized.asKeyList()).containsExactlyElementsOf(deserialized.asKeyList());
     soft.assertThat(reserialized).containsExactlyElementsOf(deserialized);
   }
@@ -206,7 +206,7 @@ public class TestIndexImpl {
     }
 
     var serialized = deserialized.serialize();
-    var reserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var reserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     soft.assertThat(reserialized.asKeyList()).containsExactlyElementsOf(deserialized.asKeyList());
     soft.assertThat(reserialized).containsExactlyElementsOf(deserialized);
   }
@@ -255,11 +255,11 @@ public class TestIndexImpl {
         .forEach(segment::add);
 
     var serialized = segment.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     soft.assertThat(deserialized).isEqualTo(segment);
     soft.assertThat(deserialized.serialize()).isEqualTo(serialized);
 
-    deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
     soft.assertThat(deserialized.asKeyList()).containsExactlyElementsOf(segment.asKeyList());
     soft.assertThat(deserialized.serialize()).isEqualTo(serialized);
   }
@@ -269,12 +269,12 @@ public class TestIndexImpl {
     var segment = newStoreIndex(OBJ_REF_SERIALIZER);
     soft.assertThat(segment.isModified()).isFalse();
 
-    segment = deserializeStoreIndex(segment.serialize(), OBJ_REF_SERIALIZER);
+    segment = deserializeStoreIndex(segment.serialize(), OBJ_REF_SERIALIZER, true);
     soft.assertThat(segment.isModified()).isFalse();
     segment.add(indexElement(key("foo"), randomObjId()));
     soft.assertThat(segment.isModified()).isTrue();
 
-    segment = deserializeStoreIndex(segment.serialize(), OBJ_REF_SERIALIZER);
+    segment = deserializeStoreIndex(segment.serialize(), OBJ_REF_SERIALIZER, true);
     soft.assertThat(segment.isModified()).isFalse();
     segment.remove(key("foo"));
     soft.assertThat(segment.isModified()).isTrue();
@@ -298,7 +298,7 @@ public class TestIndexImpl {
     }
 
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, INDEX_KEY_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, INDEX_KEY_SERIALIZER, true);
 
     for (int i = 0; i < keys.size(); i++) {
       soft.assertThat(deserialized.contains(keys.get(i))).isTrue();
@@ -316,7 +316,7 @@ public class TestIndexImpl {
     }
 
     var serializedAgain = deserialized.serialize();
-    var deserializedAgain = deserializeStoreIndex(serializedAgain, INDEX_KEY_SERIALIZER);
+    var deserializedAgain = deserializeStoreIndex(serializedAgain, INDEX_KEY_SERIALIZER, true);
 
     for (int i = 0; i < keys.size(); i++) {
       soft.assertThat(deserializedAgain.contains(keys.get(i))).isTrue();
@@ -405,7 +405,7 @@ public class TestIndexImpl {
             + id2;
 
     Function<IndexSpi<ObjTestValue>, IndexSpi<ObjTestValue>> reSerialize =
-        seg -> deserializeStoreIndex(seg.serialize(), OBJ_TEST_SERIALIZER);
+        seg -> deserializeStoreIndex(seg.serialize(), OBJ_TEST_SERIALIZER, true);
 
     soft.assertThat(asHex(segment.serialize())).isEqualTo(serializationFormatVersion + "00");
     soft.assertThat(reSerialize.apply(segment)).isEqualTo(segment);
@@ -815,7 +815,7 @@ public class TestIndexImpl {
     soft.assertThat(modified.splitByTargetSize(targetSize)).containsExactly(modified);
     soft.assertThat(modified.isModified()).isTrue();
 
-    var deserialized = deserializeStoreIndex(modified.serialize(), OBJ_TEST_SERIALIZER);
+    var deserialized = deserializeStoreIndex(modified.serialize(), OBJ_TEST_SERIALIZER, true);
     soft.assertThat(deserialized.isModified()).isFalse();
     soft.assertThat(deserialized.splitByTargetSize(targetSize)).containsExactly(deserialized);
     soft.assertThat(deserialized.isModified()).isFalse();
@@ -865,7 +865,6 @@ public class TestIndexImpl {
     var indexTestSet = basicIndexTestSet();
     var index = indexTestSet.keyIndex();
 
-    soft.assertThat(index.asMutableIndex()).isSameAs(index);
     soft.assertThat(index.isMutable()).isTrue();
     soft.assertThatCode(() -> index.splitByTargetSize(3)).doesNotThrowAnyException();
   }
@@ -914,7 +913,7 @@ public class TestIndexImpl {
     index.add(indexElement(key4, (ObjRef) null)); // tombstone
 
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
     soft.assertThat(deserialized.estimatedSerializedSize()).isEqualTo(serialized.remaining());
 
@@ -945,7 +944,7 @@ public class TestIndexImpl {
     var value5 = randomObjId();
     deserialized.add(indexElement(key5, value5));
     var reserialized = deserialized.serialize();
-    var redeserialized = deserializeStoreIndex(reserialized, OBJ_REF_SERIALIZER);
+    var redeserialized = deserializeStoreIndex(reserialized, OBJ_REF_SERIALIZER, true);
 
     soft.assertThat(redeserialized.getElement(key1).valueNullable()).isEqualTo(value1);
     soft.assertThat(redeserialized.getElement(key2).valueNullable()).isNull();
@@ -965,7 +964,7 @@ public class TestIndexImpl {
     index.add(indexElement(key3, objTestValueFromString("babe")));
 
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_TEST_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_TEST_SERIALIZER, true);
 
     soft.assertThat(deserialized.getElement(key1).valueNullable())
         .isEqualTo(objTestValueFromString("cafe"));
@@ -989,12 +988,12 @@ public class TestIndexImpl {
 
     // Serialize, deserialize, then replace key2 with null (tombstone)
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
     deserialized.add(indexElement(key2, (ObjRef) null));
 
     var reserialized = deserialized.serialize();
-    var final_ = deserializeStoreIndex(reserialized, OBJ_REF_SERIALIZER);
+    var final_ = deserializeStoreIndex(reserialized, OBJ_REF_SERIALIZER, true);
 
     soft.assertThat(final_.getElement(key1).valueNullable()).isEqualTo(value1);
     soft.assertThat(final_.getElement(key2).valueNullable()).isNull();
@@ -1013,7 +1012,7 @@ public class TestIndexImpl {
     }
 
     var serialized = index.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
 
     for (var i = 0; i < 10; i++) {
       var el = deserialized.getElement(key("key" + i));
@@ -1081,7 +1080,7 @@ public class TestIndexImpl {
     index.add(indexElement(key2, (String) null));
     index.add(indexElement(key3, "charlie"));
 
-    var deserialized = deserializeStoreIndex(index.serialize(), serializer);
+    var deserialized = deserializeStoreIndex(index.serialize(), serializer, true);
 
     var iteratedKeys = new ArrayList<IndexKey>();
     deserialized.iterator().forEachRemaining(element -> iteratedKeys.add(element.key()));
@@ -1151,7 +1150,7 @@ public class TestIndexImpl {
     var key1 = key("a");
     index.add(indexElement(key1, (String) null));
 
-    var deserialized = deserializeStoreIndex(index.serialize(), serializer);
+    var deserialized = deserializeStoreIndex(index.serialize(), serializer, true);
     var element = deserialized.getElement(key1);
 
     soft.assertThat(element.hasValue()).isFalse();
@@ -1170,7 +1169,7 @@ public class TestIndexImpl {
     var value1 = Util.randomObjId();
     index.add(indexElement(key1, value1));
 
-    var deserialized = deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER);
+    var deserialized = deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true);
     var element = deserialized.getElement(key1);
 
     var threads = Runtime.getRuntime().availableProcessors();

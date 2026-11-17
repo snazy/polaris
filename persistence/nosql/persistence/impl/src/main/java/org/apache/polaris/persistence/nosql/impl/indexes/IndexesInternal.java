@@ -39,16 +39,19 @@ import org.jspecify.annotations.Nullable;
 final class IndexesInternal {
   private IndexesInternal() {}
 
-  static <V> IndexSpi<V> emptyImmutableIndex(IndexValueSerializer<V> serializer) {
-    return new ImmutableEmptyIndexImpl<>(serializer);
+  static <V> IndexSpi<V> emptyImmutableIndex() {
+    return new ImmutableEmptyIndexImpl<>();
   }
 
   static <V> IndexSpi<V> newStoreIndex(IndexValueSerializer<V> serializer) {
     return new IndexImpl<>(serializer);
   }
 
-  static <V> IndexSpi<V> deserializeStoreIndex(ByteBuffer serialized, IndexValueSerializer<V> ser) {
-    return IndexImpl.deserializeStoreIndex(serialized.duplicate(), ser);
+  static <V> IndexSpi<V> deserializeStoreIndex(
+      ByteBuffer serialized, IndexValueSerializer<V> ser, boolean mutable) {
+    return mutable
+        ? IndexImpl.deserializeStoreIndex(serialized.duplicate(), ser)
+        : new ReadOnlyIndexImpl<>(serialized, ser);
   }
 
   /**
@@ -56,8 +59,8 @@ final class IndexesInternal {
    * only when it is required.
    */
   static <V> IndexSpi<V> lazyStoreIndex(
-      Supplier<IndexSpi<V>> supplier, IndexKey firstKey, IndexKey lastKey) {
-    return new LazyIndexImpl<>(supplier, firstKey, lastKey);
+      Supplier<IndexSpi<V>> supplier, IndexKey firstKey, IndexKey lastKey, boolean mutable) {
+    return new LazyIndexImpl<>(supplier, firstKey, lastKey, mutable);
   }
 
   /**
@@ -76,7 +79,7 @@ final class IndexesInternal {
    * database rows/objects.
    */
   @SuppressWarnings("unchecked")
-  static <V> IndexSpi<V> indexFromStripes(List<IndexSpi<V>> stripes) {
+  static <V> IndexSpi<V> indexFromStripes(List<IndexSpi<V>> stripes, boolean mutable) {
     var stripesArr = stripes.toArray(new IndexSpi[0]);
     var firstLastKeys = new IndexKey[stripes.size() * 2];
     for (var i = 0; i < stripes.size(); i++) {
@@ -88,7 +91,7 @@ final class IndexesInternal {
       firstLastKeys[i * 2 + 1] = last;
     }
 
-    return new StripedIndexImpl<V>(stripesArr, firstLastKeys, notLoading());
+    return new StripedIndexImpl<V>(stripesArr, firstLastKeys, notLoading(), mutable);
   }
 
   /**
@@ -106,10 +109,11 @@ final class IndexesInternal {
   static <V> IndexSpi<V> indexFromStripes(
       @NonNull List<IndexSpi<V>> stripes,
       @NonNull List<IndexKey> firstLastKeys,
-      @NonNull IndexLoader<V> indexLoader) {
+      @NonNull IndexLoader<V> indexLoader,
+      boolean mutable) {
     var stripesArr = stripes.toArray(new IndexSpi[0]);
     var firstLastKeysArr = firstLastKeys.toArray(new IndexKey[0]);
-    return new StripedIndexImpl<V>(stripesArr, firstLastKeysArr, indexLoader);
+    return new StripedIndexImpl<V>(stripesArr, firstLastKeysArr, indexLoader, mutable);
   }
 
   static <V> InternalIndexElement<V> indexElement(IndexKey key, V content) {
@@ -120,11 +124,12 @@ final class IndexesInternal {
   static <V> IndexSpi<V> referenceIndex(
       @Nullable IndexContainer<V> indexContainer,
       @NonNull Persistence persistence,
-      @NonNull IndexValueSerializer<V> indexValueSerializer) {
+      @NonNull IndexValueSerializer<V> indexValueSerializer,
+      boolean mutable) {
     if (indexContainer != null) {
       var commitStripes = indexContainer.stripes();
       if (!commitStripes.isEmpty()) {
-        return referenceIndexFromStripes(persistence, commitStripes, indexValueSerializer);
+        return referenceIndexFromStripes(persistence, commitStripes, indexValueSerializer, mutable);
       }
     }
 
@@ -134,7 +139,8 @@ final class IndexesInternal {
   private static <V> IndexSpi<V> referenceIndexFromStripes(
       @NonNull Persistence persistence,
       @NonNull List<IndexStripe> indexStripes,
-      @NonNull IndexValueSerializer<V> indexValueSerializer) {
+      @NonNull IndexValueSerializer<V> indexValueSerializer,
+      boolean mutable) {
     var stripes = new ArrayList<IndexSpi<V>>(indexStripes.size());
     var firstLastKeys = new ArrayList<IndexKey>(indexStripes.size() * 2);
 
@@ -149,13 +155,14 @@ final class IndexesInternal {
                   () -> {
                     IndexSpi<V> l = loaded[idx];
                     if (l == null) {
-                      l = loadIndexSegment(persistence, s.segment(), indexValueSerializer);
+                      l = loadIndexSegment(persistence, s.segment(), indexValueSerializer, mutable);
                       loaded[idx] = l;
                     }
                     return l;
                   },
                   s.firstKey(),
-                  s.lastKey())
+                  s.lastKey(),
+                  mutable)
               .setObjId(s.segment()));
       firstLastKeys.add(s.firstKey());
       firstLastKeys.add(s.lastKey());
@@ -177,7 +184,8 @@ final class IndexesInternal {
               }
             }
           }
-          IndexSpi<V>[] indexes = loadIndexSegments(persistence, ids, indexValueSerializer);
+          IndexSpi<V>[] indexes =
+              loadIndexSegments(persistence, ids, indexValueSerializer, mutable);
           for (var i = 0; i < indexes.length; i++) {
             var idx = indexes[i];
             if (idx != null) {
@@ -187,20 +195,23 @@ final class IndexesInternal {
           return indexes;
         };
 
-    return indexFromStripes(stripes, firstLastKeys, indexLoader);
+    return indexFromStripes(stripes, firstLastKeys, indexLoader, mutable);
   }
 
   private static <V> IndexSpi<V>[] loadIndexSegments(
       @NonNull Persistence persistence,
       @NonNull ObjRef[] indexes,
-      @NonNull IndexValueSerializer<V> indexValueSerializer) {
+      @NonNull IndexValueSerializer<V> indexValueSerializer,
+      boolean mutable) {
     var objs = persistence.fetchMany(IndexStripeObj.class, indexes);
     @SuppressWarnings("unchecked")
     IndexSpi<V>[] r = new IndexSpi[indexes.length];
     for (var i = 0; i < objs.length; i++) {
       var index = objs[i];
       if (index != null) {
-        r[i] = deserializeStoreIndex(index.index(), indexValueSerializer).setObjId(indexes[i]);
+        r[i] =
+            deserializeStoreIndex(index.index(), indexValueSerializer, mutable)
+                .setObjId(indexes[i]);
       }
     }
     return r;
@@ -209,12 +220,13 @@ final class IndexesInternal {
   private static <V> IndexSpi<V> loadIndexSegment(
       @NonNull Persistence persistence,
       @NonNull ObjRef indexId,
-      @NonNull IndexValueSerializer<V> indexValueSerializer) {
+      @NonNull IndexValueSerializer<V> indexValueSerializer,
+      boolean mutable) {
     var index = persistence.fetch(indexId, IndexStripeObj.class);
     if (index == null) {
       throw new IllegalStateException(
           format("Commit %s references a reference index, which does not exist", indexId));
     }
-    return deserializeStoreIndex(index.index(), indexValueSerializer).setObjId(indexId);
+    return deserializeStoreIndex(index.index(), indexValueSerializer, mutable).setObjId(indexId);
   }
 }

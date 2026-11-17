@@ -68,6 +68,8 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
       @NonNull LongSupplier idGenerator,
       @NonNull IndexValueSerializer<V> serializer) {
     super(reference, embedded);
+    checkState(embedded.isMutable(), "Embedded index must be mutable");
+    checkState(reference.isMutable(), "Reference index must be mutable");
     this.indexContainer = indexContainer;
     this.params = params;
     this.idGenerator = idGenerator;
@@ -138,7 +140,7 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
       String prefix,
       @NonNull BiConsumer<String, ? super Obj> persistObj,
       ImmutableIndexContainer.Builder<V> indexedBuilder) {
-    var mutableReference = reference.asMutableIndex();
+    var mutableReference = reference;
 
     // Prefetch existing stripes that contain keys in the 'embedded' index
     prefetchExistingStripes(this.indexContainer, mutableReference);
@@ -147,7 +149,7 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     updateAffectedStripes(mutableReference);
 
     // Set the new, empty embedded index
-    indexedBuilder.embedded(emptyImmutableIndex(serializer).serialize());
+    indexedBuilder.embedded(emptyImmutableIndex().serialize());
 
     // Collect the surviving stripes - stripes will and must be ordered by the first/last keys over
     // all stripes.
@@ -159,9 +161,8 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
 
   private void prefetchExistingStripes(
       IndexContainer<V> indexContainer, IndexSpi<V> mutableReference) {
-    checkState(embedded instanceof IndexImpl<V>);
     if (indexContainer != null && !indexContainer.stripes().isEmpty()) {
-      // 'embedded' is a 'StoreIndexImpl' and it's 'asKeyList' is cheap
+      // The embedded leaf is already loaded, so its key list does not trigger stripe loads.
       mutableReference.prefetchIfNecessary(embedded.asKeyList());
     }
   }
@@ -309,11 +310,6 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
   @Override
   public ByteBuffer serialize() {
     throw unsupported();
-  }
-
-  @Override
-  public IndexSpi<V> asMutableIndex() {
-    return this;
   }
 
   @Override
