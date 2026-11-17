@@ -331,11 +331,6 @@ final class IndexLegacyImpl<V> implements IndexSpi<V> {
   }
 
   @Override
-  public IndexSpi<V> asMutableIndex() {
-    return this;
-  }
-
-  @Override
   public boolean isMutable() {
     return true;
   }

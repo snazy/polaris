@@ -103,7 +103,8 @@ public class TestStripedIndexImpl {
                     return stripes.get(stripeIndex);
                   },
                   null,
-                  null));
+                  null,
+                  true));
         }
         var firstLastKeys = stripes.stream().flatMap(s -> Stream.of(s.first(), s.last())).toList();
         var striped =
@@ -119,7 +120,8 @@ public class TestStripedIndexImpl {
                     }
                   }
                   return loaded;
-                });
+                },
+                true);
         var expectedKeys =
             stripes.stream()
                 .flatMap(s -> s.asKeyList().stream())
@@ -152,7 +154,7 @@ public class TestStripedIndexImpl {
       stripe.add(indexElement(key(k), Util.randomObjId()));
       stripes.add(stripe);
     }
-    var striped = indexFromStripes(stripes);
+    var striped = indexFromStripes(stripes, true);
     for (var k : List.of("a0", "b0", "d1")) {
       striped.add(indexElement(key(k), Util.randomObjId()));
       soft.assertThat(newArrayList(striped.elementIterator(key(k), key(k), prefetch)))
@@ -188,7 +190,7 @@ public class TestStripedIndexImpl {
     Supplier<List<IndexSpi<ObjRef>>> stripesSupplier =
         () ->
             originalStripesList.stream()
-                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER))
+                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true))
                 .collect(Collectors.toList());
     var firstLastKeys =
         stripesSupplier.get().stream()
@@ -200,7 +202,7 @@ public class TestStripedIndexImpl {
           var originalStripes = stripesSupplier.get();
           var stripes =
               originalStripes.stream()
-                  .map(s -> lazyStoreIndex(() -> s, null, null))
+                  .map(s -> lazyStoreIndex(() -> s, null, null, true))
                   .collect(Collectors.toList());
           return IndexesInternal.indexFromStripes(
               stripes,
@@ -218,7 +220,8 @@ public class TestStripedIndexImpl {
                   }
                 }
                 return r;
-              });
+              },
+              true);
         };
 
     var striped = stripedSupplier.get();
@@ -258,7 +261,7 @@ public class TestStripedIndexImpl {
     Supplier<IndexSpi<ObjRef>> stripedSupplier;
 
     stripedSupplier =
-        () -> IndexesInternal.indexFromStripes(originalStripes, firstLastKeys, notLoading());
+        () -> IndexesInternal.indexFromStripes(originalStripes, firstLastKeys, notLoading(), true);
 
     var striped = stripedSupplier.get();
     soft.assertThat(striped.isLoaded()).isTrue();
@@ -273,7 +276,7 @@ public class TestStripedIndexImpl {
     Supplier<List<IndexSpi<ObjRef>>> stripesSupplier =
         () ->
             originalStripesList.stream()
-                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER))
+                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true))
                 .collect(Collectors.toList());
     var firstLastKeys =
         stripesSupplier.get().stream()
@@ -313,7 +316,7 @@ public class TestStripedIndexImpl {
             var originalStripes = stripesSupplier.get();
             var stripes =
                 originalStripes.stream()
-                    .map(s -> lazyStoreIndex(() -> s, null, null))
+                    .map(s -> lazyStoreIndex(() -> s, null, null, true))
                     .collect(Collectors.toList());
             return IndexesInternal.indexFromStripes(
                 stripes,
@@ -331,12 +334,14 @@ public class TestStripedIndexImpl {
                     }
                   }
                   return r;
-                });
+                },
+                true);
           };
     } else {
       stripedSupplier =
           () ->
-              IndexesInternal.indexFromStripes(stripesSupplier.get(), firstLastKeys, notLoading());
+              IndexesInternal.indexFromStripes(
+                  stripesSupplier.get(), firstLastKeys, notLoading(), true);
     }
     return stripedSupplier;
   }
@@ -348,7 +353,7 @@ public class TestStripedIndexImpl {
     var indexTestSet = basicIndexTestSet();
 
     var striped =
-        indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), numStripes));
+        indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), numStripes), true);
     var stripes = striped.stripes();
 
     // Sanity checks
@@ -378,7 +383,8 @@ public class TestStripedIndexImpl {
                       return stripe;
                     },
                     null,
-                    null));
+                    null,
+                    true));
           }
 
           return IndexesInternal.indexFromStripes(
@@ -394,7 +400,8 @@ public class TestStripedIndexImpl {
                   }
                 }
                 return r;
-              });
+              },
+              true);
         };
 
     for (var i = 0; i < stripes.size(); i++) {
@@ -527,7 +534,7 @@ public class TestStripedIndexImpl {
 
     var source = indexTestSet.keyIndex();
     var striped =
-        indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), numStripes));
+        indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), numStripes), true);
 
     // Sanity checks
     soft.assertThat(striped.stripes()).hasSize(numStripes);
@@ -577,7 +584,7 @@ public class TestStripedIndexImpl {
           .containsExactlyElementsOf(sourceToKey.reversed());
     }
 
-    var stripedFromStripes = indexFromStripes(striped.stripes());
+    var stripedFromStripes = indexFromStripes(striped.stripes(), true);
     soft.assertThatIterable(stripedFromStripes).containsExactlyElementsOf(striped);
     soft.assertThat(stripedFromStripes)
         .asInstanceOf(type(IndexSpi.class))
@@ -588,9 +595,8 @@ public class TestStripedIndexImpl {
   @Test
   public void stateRelated() {
     var indexTestSet = basicIndexTestSet();
-    var striped = indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), 3));
+    var striped = indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), 3), true);
 
-    soft.assertThat(striped.asMutableIndex()).isSameAs(striped);
     soft.assertThat(striped.isMutable()).isTrue();
     soft.assertThatThrownBy(() -> striped.splitByTargetSize(3))
         .isInstanceOf(UnsupportedOperationException.class);
@@ -602,13 +608,13 @@ public class TestStripedIndexImpl {
     var indexTestSet = basicIndexTestSet();
     var source = indexTestSet.keyIndex();
 
-    var striped = indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), 3));
+    var striped = indexFromStripes(splitIntoStripeCountForTest(indexTestSet.keyIndex(), 3), true);
     if (lazy) {
       var lazyStripes =
           striped.stripes().stream()
-              .map(i -> lazyStoreIndex(() -> i, null, null))
+              .map(i -> lazyStoreIndex(() -> i, null, null, true))
               .collect(Collectors.toList());
-      striped = indexFromStripes(lazyStripes);
+      striped = indexFromStripes(lazyStripes, true);
     }
 
     var keyList = source.asKeyList();
@@ -645,13 +651,13 @@ public class TestStripedIndexImpl {
       indexOdd.add(elements.get(i));
     }
 
-    var striped = indexFromStripes(splitIntoStripeCountForTest(indexEven, 4));
+    var striped = indexFromStripes(splitIntoStripeCountForTest(indexEven, 4), true);
     if (lazy) {
       var lazyStripes =
           striped.stripes().stream()
-              .map(i -> lazyStoreIndex(() -> i, null, null))
+              .map(i -> lazyStoreIndex(() -> i, null, null, true))
               .collect(Collectors.toList());
-      striped = indexFromStripes(lazyStripes);
+      striped = indexFromStripes(lazyStripes, true);
     }
 
     soft.assertThatIterable(striped).containsExactlyElementsOf(newArrayList(indexEven));

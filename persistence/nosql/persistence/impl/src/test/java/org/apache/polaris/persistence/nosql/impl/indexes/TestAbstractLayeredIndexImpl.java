@@ -58,7 +58,7 @@ public class TestAbstractLayeredIndexImpl {
     soft.assertThat(updates.isModified()).isTrue();
     soft.assertThat(layered.isModified()).isTrue();
 
-    updates = deserializeStoreIndex(updates.serialize(), OBJ_REF_SERIALIZER);
+    updates = deserializeStoreIndex(updates.serialize(), OBJ_REF_SERIALIZER, true);
     layered = layeredIndex(reference, updates);
     soft.assertThat(updates.isModified()).isFalse();
     soft.assertThat(layered.isModified()).isFalse();
@@ -73,11 +73,11 @@ public class TestAbstractLayeredIndexImpl {
   @ValueSource(booleans = {false, true})
   public void isLoadedReflected(boolean updateReference) {
     var reference = basicIndexTestSet().keyIndex();
-    var lazyReference = lazyStoreIndex(() -> reference, null, null);
+    var lazyReference = lazyStoreIndex(() -> reference, null, null, true);
     soft.assertThat(lazyReference.isLoaded()).isFalse();
 
     var updates = newStoreIndex(OBJ_REF_SERIALIZER);
-    var lazyUpdates = lazyStoreIndex(() -> updates, null, null);
+    var lazyUpdates = lazyStoreIndex(() -> updates, null, null, true);
     soft.assertThat(lazyUpdates.isLoaded()).isFalse();
 
     var layered = layeredIndex(lazyReference, lazyUpdates);
@@ -216,8 +216,6 @@ public class TestAbstractLayeredIndexImpl {
     var index2 = newStoreIndex(OBJ_REF_SERIALIZER);
     var layered = layeredIndex(index1, index2);
 
-    soft.assertThatThrownBy(layered::asMutableIndex)
-        .isInstanceOf(UnsupportedOperationException.class);
     soft.assertThat(layered.isMutable()).isFalse();
     soft.assertThatThrownBy(() -> layered.splitByTargetSize(3))
         .isInstanceOf(UnsupportedOperationException.class);

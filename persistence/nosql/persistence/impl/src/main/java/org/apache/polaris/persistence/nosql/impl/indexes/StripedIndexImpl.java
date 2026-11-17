@@ -19,6 +19,7 @@
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.binarySearch;
 import static java.util.Collections.emptyIterator;
@@ -38,11 +39,13 @@ final class StripedIndexImpl<V> implements IndexSpi<V> {
   private final IndexSpi<V>[] stripes;
   private final IndexKey[] firstLastKeys;
   private final IndexLoader<V> indexLoader;
+  private final boolean mutable;
 
   StripedIndexImpl(
       @NonNull IndexSpi<V>[] stripes,
       @NonNull IndexKey[] firstLastKeys,
-      IndexLoader<V> indexLoader) {
+      IndexLoader<V> indexLoader,
+      boolean mutable) {
     checkArgument(stripes.length > 1);
     checkArgument(
         stripes.length * 2 == firstLastKeys.length,
@@ -55,6 +58,7 @@ final class StripedIndexImpl<V> implements IndexSpi<V> {
     this.stripes = stripes;
     this.firstLastKeys = firstLastKeys;
     this.indexLoader = indexLoader;
+    this.mutable = mutable;
   }
 
   @Override
@@ -134,13 +138,8 @@ final class StripedIndexImpl<V> implements IndexSpi<V> {
   }
 
   @Override
-  public IndexSpi<V> asMutableIndex() {
-    return this;
-  }
-
-  @Override
   public boolean isMutable() {
-    return true;
+    return mutable;
   }
 
   @Override
@@ -155,12 +154,9 @@ final class StripedIndexImpl<V> implements IndexSpi<V> {
 
   @Override
   public IndexSpi<V> mutableStripeForKey(IndexKey key) {
+    checkState(mutable, "Index is read-only");
     var i = indexForKey(key);
-    var stripe = stripes[i];
-    if (!stripe.isMutable()) {
-      stripes[i] = stripe = stripe.asMutableIndex();
-    }
-    return stripe;
+    return stripes[i].mutableStripeForKey(key);
   }
 
   @Override

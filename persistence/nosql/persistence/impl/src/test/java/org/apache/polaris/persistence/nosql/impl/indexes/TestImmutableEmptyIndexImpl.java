@@ -21,11 +21,11 @@ package org.apache.polaris.persistence.nosql.impl.indexes;
 import static org.apache.polaris.persistence.nosql.api.index.IndexKey.key;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.OBJ_REF_SERIALIZER;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.deserializeStoreIndex;
-import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.emptyImmutableIndex;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.indexElement;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.newStoreIndex;
 
 import java.nio.ByteBuffer;
+import org.apache.polaris.persistence.nosql.api.obj.ObjRef;
 import org.assertj.core.api.SoftAssertions;
 import org.assertj.core.api.junit.jupiter.InjectSoftAssertions;
 import org.assertj.core.api.junit.jupiter.SoftAssertionsExtension;
@@ -38,7 +38,7 @@ public class TestImmutableEmptyIndexImpl {
 
   @Test
   public void immutableEmpty() {
-    var index = emptyImmutableIndex(OBJ_REF_SERIALIZER);
+    var index = IndexesInternal.<ObjRef>emptyImmutableIndex();
 
     var commitOp = Util.randomObjId();
 
@@ -48,7 +48,7 @@ public class TestImmutableEmptyIndexImpl {
     soft.assertThat(index.last()).isNull();
     soft.assertThat(index.estimatedSerializedSize()).isEqualTo(2);
     soft.assertThat(index.serialize()).isEqualTo(ByteBuffer.wrap(new byte[] {(byte) 1, (byte) 0}));
-    soft.assertThat(deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER).asKeyList())
+    soft.assertThat(deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true).asKeyList())
         .isEqualTo(index.asKeyList());
     soft.assertThat(index.asKeyList()).isEmpty();
     soft.assertThat(index.stripes()).isEmpty();
@@ -63,9 +63,8 @@ public class TestImmutableEmptyIndexImpl {
 
   @Test
   public void stateRelated() {
-    var index = emptyImmutableIndex(OBJ_REF_SERIALIZER);
+    var index = IndexesInternal.<ObjRef>emptyImmutableIndex();
 
-    soft.assertThat(index.asMutableIndex()).isNotSameAs(index);
     soft.assertThat(index.isMutable()).isFalse();
     soft.assertThatThrownBy(() -> index.splitByTargetSize(3))
         .isInstanceOf(UnsupportedOperationException.class);
@@ -73,7 +72,7 @@ public class TestImmutableEmptyIndexImpl {
 
   @Test
   public void serialization() {
-    var index = emptyImmutableIndex(OBJ_REF_SERIALIZER);
+    var index = IndexesInternal.<ObjRef>emptyImmutableIndex();
     var mutable = newStoreIndex(OBJ_REF_SERIALIZER);
     soft.assertThat(index.serialize()).isEqualTo(mutable.serialize());
   }

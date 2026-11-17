@@ -40,13 +40,13 @@ public final class IndexesProvider {
       @NonNull Persistence persistence,
       @NonNull IndexValueSerializer<V> indexValueSerializer) {
     if (indexContainer != null) {
-      var embedded = deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer);
-      var reference = referenceIndex(indexContainer, persistence, indexValueSerializer);
+      var embedded = deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer, false);
+      var reference = referenceIndex(indexContainer, persistence, indexValueSerializer, false);
       return new ReadOnlyIndex<>(
           reference != null ? new ReadOnlyLayeredIndexImpl<>(reference, embedded) : embedded);
     }
 
-    return new ReadOnlyIndex<>(emptyImmutableIndex(indexValueSerializer));
+    return new ReadOnlyIndex<>(emptyImmutableIndex());
   }
 
   public static <V> UpdatableIndex<V> buildWriteIndex(
@@ -65,11 +65,11 @@ public final class IndexesProvider {
       @NonNull IndexValueSerializer<V> indexValueSerializer) {
     var embedded =
         indexContainer != null
-            ? deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer)
+            ? deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer, true)
             : newStoreIndex(indexValueSerializer);
-    var reference = referenceIndex(indexContainer, persistence, indexValueSerializer);
+    var reference = referenceIndex(indexContainer, persistence, indexValueSerializer, true);
     if (reference == null) {
-      reference = new ImmutableEmptyIndexImpl<>(indexValueSerializer);
+      reference = newStoreIndex(indexValueSerializer);
     }
 
     return new UpdatableIndexImpl<>(

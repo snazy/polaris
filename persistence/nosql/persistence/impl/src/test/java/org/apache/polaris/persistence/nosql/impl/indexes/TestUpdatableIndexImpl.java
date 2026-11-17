@@ -466,7 +466,8 @@ public class TestUpdatableIndexImpl {
         deserializeStoreIndex(
             requireNonNull(persistence.fetch(stripeToEmpty.segment(), IndexStripeObj.class))
                 .index(),
-            OBJ_TEST_SERIALIZER);
+            OBJ_TEST_SERIALIZER,
+            true);
     stripeObj.asKeyList().forEach(updatable::remove);
 
     // Index was NOT spilled-out yet.

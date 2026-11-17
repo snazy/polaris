@@ -47,7 +47,7 @@ final class LazyIndexElementJCStressSupport {
   static IndexSpi<ObjRef> singleElementIndex(IndexKey key, ObjRef value) {
     var index = newStoreIndex(OBJ_REF_SERIALIZER);
     index.add(indexElement(key, value));
-    return deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER);
+    return deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true);
   }
 
   static IndexSpi<ObjRef> iteratorIndex() {
@@ -55,7 +55,7 @@ final class LazyIndexElementJCStressSupport {
     index.add(indexElement(ITERATOR_KEY_1, value()));
     index.add(indexElement(ITERATOR_KEY_2, null));
     index.add(indexElement(ITERATOR_KEY_3, value()));
-    return deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER);
+    return deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true);
   }
 
   static int count(Index<ObjRef> index) {

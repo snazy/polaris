@@ -40,11 +40,6 @@ final class ReadOnlyLayeredIndexImpl<V> extends AbstractLayeredIndexImpl<V> {
   }
 
   @Override
-  public IndexSpi<V> asMutableIndex() {
-    throw unsupported();
-  }
-
-  @Override
   public boolean isMutable() {
     return false;
   }

@@ -171,8 +171,7 @@ interface IndexSpi<V> extends ModifiableIndex<V> {
     throw new UnsupportedOperationException();
   }
 
-  IndexSpi<V> asMutableIndex();
-
+  /** Construction-time write capability, independent of loaded or modified state. */
   boolean isMutable();
 
   /**

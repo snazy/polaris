@@ -241,7 +241,7 @@ public interface KeyIndexTestSet<ELEMENT> {
       var serialized = index.serialize();
 
       // Re-serialize to have "clean" internal values in KeyIndexImpl
-      var keyIndex = deserializeStoreIndex(serialized.duplicate(), elementSerializer());
+      var keyIndex = deserializeStoreIndex(serialized.duplicate(), elementSerializer(), true);
 
       return KeyIndexTestSet.of(keys, keyIndex.serialize(), keyIndex, index);
     }
@@ -262,7 +262,7 @@ public interface KeyIndexTestSet<ELEMENT> {
   }
 
   default IndexSpi<ObjRef> deserialize() {
-    return deserializeStoreIndex(serializedSafe(), OBJ_REF_SERIALIZER);
+    return deserializeStoreIndex(serializedSafe(), OBJ_REF_SERIALIZER, true);
   }
 
   default InternalIndexElement<ELEMENT> randomGetKey() {

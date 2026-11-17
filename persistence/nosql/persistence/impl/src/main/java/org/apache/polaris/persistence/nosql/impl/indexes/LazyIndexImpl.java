@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.persistence.nosql.impl.indexes;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
@@ -36,12 +38,15 @@ final class LazyIndexImpl<V> implements IndexSpi<V> {
   private volatile ObjRef objRef;
   private final IndexKey firstKey;
   private final IndexKey lastKey;
+  private final boolean mutable;
   private Thread loadingThread;
 
-  LazyIndexImpl(Supplier<IndexSpi<V>> supplier, IndexKey firstKey, IndexKey lastKey) {
+  LazyIndexImpl(
+      Supplier<IndexSpi<V>> supplier, IndexKey firstKey, IndexKey lastKey, boolean mutable) {
     this.firstKey = firstKey;
     this.lastKey = lastKey;
     this.loader = supplier;
+    this.mutable = mutable;
   }
 
   private IndexSpi<V> loaded() {
@@ -159,20 +164,13 @@ final class LazyIndexImpl<V> implements IndexSpi<V> {
   }
 
   @Override
-  public IndexSpi<V> asMutableIndex() {
-    return loaded().asMutableIndex();
-  }
-
-  @Override
   public boolean isMutable() {
-    if (notLoadedYet(loadState)) {
-      return false;
-    }
-    return loaded().isMutable();
+    return mutable;
   }
 
   @Override
   public List<IndexSpi<V>> splitByTargetSize(long targetSerializedSize) {
+    checkState(mutable, "Index is read-only");
     return loaded().splitByTargetSize(targetSerializedSize);
   }
 
@@ -183,6 +181,7 @@ final class LazyIndexImpl<V> implements IndexSpi<V> {
 
   @Override
   public IndexSpi<V> mutableStripeForKey(IndexKey key) {
+    checkState(mutable, "Index is read-only");
     return loaded().mutableStripeForKey(key);
   }
 
@@ -198,11 +197,13 @@ final class LazyIndexImpl<V> implements IndexSpi<V> {
 
   @Override
   public AddResult add(@NonNull InternalIndexElement<V> element) {
+    checkState(mutable, "Index is read-only");
     return loaded().add(element);
   }
 
   @Override
   public boolean remove(@NonNull IndexKey key) {
+    checkState(mutable, "Index is read-only");
     return loaded().remove(key);
   }
 
