@@ -39,6 +39,37 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TestRepresentativeIndexWorkload {
   @ParameterizedTest
+  @MethodSource("cases")
+  void v1ControlsShareInputsAcrossHistories(
+      RepresentativeKeyDataset.Family family,
+      RepresentativeIndexWorkload.History history,
+      RepresentativeIndexWorkload.Partitioning partitioning) {
+    var legacy =
+        create(family, RepresentativeIndexWorkload.Variant.LEGACY, 129, 0, history, partitioning);
+    var current =
+        create(family, RepresentativeIndexWorkload.Variant.BASELINE, 129, 0, history, partitioning);
+    assertThat(legacy.input).isEqualTo(current.input);
+    assertThat(legacy.fresh()).isExactlyInstanceOf(IndexLegacyImpl.class);
+    var params = Map.of("family", family.name(), "seed", "1369956643");
+    var read =
+        legacy.metadata(
+            params, new RepresentativeIndexWorkload.Outcome(List.of(legacy.input), 0), null);
+    assertThat(read)
+        .containsEntry("indexRole", "READ")
+        .containsEntry("implementation", IndexLegacyImpl.class.getName());
+    var output =
+        legacy
+            .prepareMutation(
+                16,
+                RepresentativeIndexWorkload.Locality.SCATTERED,
+                RepresentativeIndexWorkload.Operation.MIXED)
+            .run(false, 2000);
+    assertThat(legacy.metadata(params, output, "spill"))
+        .containsEntry("indexRole", "WRITE")
+        .containsEntry("implementation", IndexLegacyImpl.class.getName());
+  }
+
+  @ParameterizedTest
   @EnumSource(RepresentativeKeyDataset.Family.class)
   void baselineUsesProductionReadAndWriteRoles(RepresentativeKeyDataset.Family family) {
     var data =

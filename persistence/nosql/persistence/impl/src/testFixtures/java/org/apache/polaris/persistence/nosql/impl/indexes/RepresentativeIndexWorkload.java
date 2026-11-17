@@ -48,6 +48,8 @@ import org.apache.polaris.persistence.nosql.coretypes.content.IcebergTableObj;
 /** Fixed logical populations and traces, shared by the representative read and mutation benches. */
 final class RepresentativeIndexWorkload<V> {
   enum Variant {
+    // Frozen pre-D3 index implementation, using the same current serializers and V1 input bytes.
+    LEGACY,
     // Production D3 reader for reads; production mutable IndexImpl for writes.
     BASELINE,
     PREFIX_ENDS,
@@ -244,7 +246,15 @@ final class RepresentativeIndexWorkload<V> {
       for (int round = 0; round < 4; round++) {
         var changes = changes(logical, 16, Locality.SCATTERED, Operation.MIXED, next, round + 1);
         next += 16;
-        encoded = apply(encoded, changes, false, Long.MAX_VALUE).parts().getFirst();
+        encoded =
+            apply(
+                    encoded,
+                    changes,
+                    false,
+                    Long.MAX_VALUE,
+                    variant == Variant.LEGACY ? Variant.BASELINE : variant)
+                .parts()
+                .getFirst();
         applyModel(logical, changes);
       }
     }
@@ -307,6 +317,7 @@ final class RepresentativeIndexWorkload<V> {
 
   IndexSpi<V> read(ByteBuffer bytes) {
     return switch (variant) {
+      case LEGACY -> IndexLegacyImpl.deserializeStoreIndex(bytes.duplicate(), codec);
       case BASELINE -> IndexesInternal.deserializeStoreIndex(bytes, codec, false);
       case PREFIX_ENDS, FRONT_ENDS, FRONT_PREFIX_ENDS ->
           new SplitV2IndexReader<>(bytes.duplicate(), codec);
@@ -373,15 +384,21 @@ final class RepresentativeIndexWorkload<V> {
   }
 
   Outcome spill(List<SplitV2IndexWriter.Change<V>> changes, boolean split, long target) {
-    return apply(input, changes, split, target);
+    return apply(input, changes, split, target, variant);
   }
 
   private Outcome apply(
-      ByteBuffer source, List<SplitV2IndexWriter.Change<V>> changes, boolean split, long target) {
+      ByteBuffer source,
+      List<SplitV2IndexWriter.Change<V>> changes,
+      boolean split,
+      long target,
+      Variant implementation) {
     IndexSpi<V> view =
-        variant == Variant.BASELINE
-            ? IndexesInternal.deserializeStoreIndex(source, codec, true)
-            : read(source);
+        switch (implementation) {
+          case LEGACY -> IndexLegacyImpl.deserializeStoreIndex(source.duplicate(), codec);
+          case BASELINE -> IndexesInternal.deserializeStoreIndex(source, codec, true);
+          default -> read(source);
+        };
     long observed = 0;
     for (int i = 0; i < 4; i++) {
       var value = view.get(changes.get(i % changes.size()).key());
@@ -413,9 +430,11 @@ final class RepresentativeIndexWorkload<V> {
     result.put("indexRole", operation == null ? "READ" : "WRITE");
     result.put(
         "implementation",
-        (variant == Variant.BASELINE
-                ? operation == null ? ReadOnlyIndexImpl.class : IndexImpl.class
-                : operation == null ? SplitV2IndexReader.class : SplitV2IndexWriter.class)
+        (variant == Variant.LEGACY
+                ? IndexLegacyImpl.class
+                : variant == Variant.BASELINE
+                    ? operation == null ? ReadOnlyIndexImpl.class : IndexImpl.class
+                    : operation == null ? SplitV2IndexReader.class : SplitV2IndexWriter.class)
             .getName());
     result.put(
         "datasetId",
