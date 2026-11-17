@@ -71,7 +71,7 @@ class TestReadOnlyIndexImpl {
   }
 
   private static IndexSpi<IndexKey> writer() {
-    var writer = newStoreIndex(INDEX_KEY_SERIALIZER);
+    var writer = newStoreIndex(INDEX_KEY_SERIALIZER, 1);
     for (var i = 0; i < 130; i++) {
       writer.add(indexElement(entryKey(i), i % 3 == 0 ? null : key("value-" + i)));
     }
@@ -110,7 +110,7 @@ class TestReadOnlyIndexImpl {
     var position = input.position();
     var limit = input.limit();
     input.mark();
-    var read = deserializeStoreIndex(input, INDEX_KEY_SERIALIZER, false);
+    var read = deserializeStoreIndex(input, INDEX_KEY_SERIALIZER, false, 1);
     assertThat(read).isInstanceOf(ReadOnlyIndexImpl.class);
     assertThat(input.position()).isEqualTo(position);
     assertThat(input.limit()).isEqualTo(limit);
@@ -163,7 +163,7 @@ class TestReadOnlyIndexImpl {
     var writer = writer();
     var codec = spy(INDEX_KEY_SERIALIZER);
     var bytes = writer.serialize();
-    var read = deserializeStoreIndex(bytes, codec, false);
+    var read = deserializeStoreIndex(bytes, codec, false, 1);
     var target = entryKey(ordinal);
     var value = read.get(target);
     for (var i = 0; i < 20; i++) {
@@ -174,7 +174,7 @@ class TestReadOnlyIndexImpl {
     }
     verify(codec, times(1)).deserialize(any(ByteBuffer.class));
     verify(codec, never()).isNullSerialized(any(ByteBuffer.class));
-    var other = deserializeStoreIndex(bytes, codec, false);
+    var other = deserializeStoreIndex(bytes, codec, false, 1);
     var otherValue = other.get(target);
     assertThat(otherValue).isEqualTo(value);
     if (value != null) {
@@ -210,7 +210,7 @@ class TestReadOnlyIndexImpl {
             })
         .when(codec)
         .deserialize(any(ByteBuffer.class));
-    var read = deserializeStoreIndex(writer.serialize(), codec, false);
+    var read = deserializeStoreIndex(writer.serialize(), codec, false, 1);
     try (var executor = Executors.newFixedThreadPool(2)) {
       var first = CompletableFuture.supplyAsync(() -> read.get(target), executor);
       var second =
@@ -238,7 +238,7 @@ class TestReadOnlyIndexImpl {
     var writer = writer();
     var bytes = writer.serialize();
     var expected = copy(bytes);
-    var read = deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false);
+    var read = deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false, 1);
     var start = new CyclicBarrier(4);
     try (var executor = Executors.newFixedThreadPool(4)) {
       var futures = new ArrayList<CompletableFuture<Void>>();
@@ -282,7 +282,7 @@ class TestReadOnlyIndexImpl {
     for (var i = 0; i < 130; i++) {
       model.put(entryKey(i), i % 3 == 0 ? null : key("value-" + i));
     }
-    var read = deserializeStoreIndex(writer.serialize(), INDEX_KEY_SERIALIZER, false);
+    var read = deserializeStoreIndex(writer.serialize(), INDEX_KEY_SERIALIZER, false, 1);
     var bounds =
         List.of(
             key("a"),
@@ -333,7 +333,7 @@ class TestReadOnlyIndexImpl {
   void rejectsUnsupportedOrTruncatedMetadata(String hex) {
     assertThatThrownBy(() ->
             deserializeStoreIndex(
-                ByteBuffer.wrap(HexFormat.of().parseHex(hex)), INDEX_KEY_SERIALIZER, false))
+                ByteBuffer.wrap(HexFormat.of().parseHex(hex)), INDEX_KEY_SERIALIZER, false, 1))
         .isInstanceOfAny(
             IllegalArgumentException.class,
             BufferUnderflowException.class,
@@ -362,7 +362,7 @@ class TestReadOnlyIndexImpl {
     encoded.put(canonical.duplicate().position(body).limit(delta));
     encoded.put((byte) (strip | 0x80)).put((byte) 0);
     encoded.put(canonical.duplicate().position(delta + 1)).flip();
-    var read = deserializeStoreIndex(encoded, INDEX_KEY_SERIALIZER, false);
+    var read = deserializeStoreIndex(encoded, INDEX_KEY_SERIALIZER, false, 1);
     assertThat(copy(read.serialize())).containsExactly(copy(encoded));
     assertThat(read.asKeyList()).containsExactlyElementsOf(writer.asKeyList());
     for (var i = 0; i < 3; i++) {
@@ -404,11 +404,11 @@ class TestReadOnlyIndexImpl {
           @Override
           public void skip(ByteBuffer buffer) {}
         };
-    var writer = newStoreIndex(codec);
+    var writer = newStoreIndex(codec, 1);
     for (var i = 0; i < 70; i++) {
       writer.put(entryKey(i), "empty");
     }
-    var read = deserializeStoreIndex(writer.serialize(), codec, false);
+    var read = deserializeStoreIndex(writer.serialize(), codec, false, 1);
     for (var i = 0; i < 70; i++) {
       assertThat(read.get(entryKey(i))).isEqualTo("empty");
       assertThat(read.getElement(entryKey(i)).contentSerializedSize(codec)).isZero();

@@ -23,7 +23,6 @@ import static java.util.Objects.requireNonNull;
 import static org.apache.polaris.persistence.nosql.api.index.IndexStripe.indexStripe;
 import static org.apache.polaris.persistence.nosql.api.obj.ObjRef.objRef;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexStripeObj.indexStripeObj;
-import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.emptyImmutableIndex;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.indexElement;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.newStoreIndex;
 
@@ -57,6 +56,7 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
   private final PersistenceParams params;
   private final LongSupplier idGenerator;
   private final IndexValueSerializer<V> serializer;
+  private final int embeddedWriteVersion;
   private boolean hasOversizedEmbeddedEntry;
   private boolean finalized;
 
@@ -74,6 +74,9 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     this.params = params;
     this.idGenerator = idGenerator;
     this.serializer = serializer;
+    embeddedWriteVersion =
+        Math.max(
+            params.preferredIndexWriteVersion(), embedded instanceof MutableV2IndexImpl<?> ? 2 : 1);
   }
 
   @Override
@@ -82,13 +85,14 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     checkNotFinalized();
     finalized = true;
 
+    if (indexContainer != null
+        && !isModified()
+        && indexContainer.embedded().remaining() <= params.maxEmbeddedIndexSize().asLong()) {
+      return indexContainer;
+    }
     var spillRequired =
         embedded.estimatedSerializedSize() > params.maxEmbeddedIndexSize().asLong()
             || hasOversizedEmbeddedEntry;
-    if (indexContainer != null && !spillRequired && !isModified()) {
-      // Preserve existing tombstones; unchanged containers need no removal-marker cleanup.
-      return indexContainer;
-    }
 
     var indexContainerBuilder = ImmutableIndexContainer.<V>builder();
 
@@ -118,22 +122,14 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
   }
 
   private void noSpillOutUpdateEmbeddedIndex(ImmutableIndexContainer.Builder<V> indexedBuilder) {
-    var newEmbedded = newStoreIndex(serializer);
-    for (var elemIter = embedded.elementIterator(); elemIter.hasNext(); ) {
-      var elem = elemIter.next();
-      var value = elem.valueNullable();
-      if (value == null) {
-        var key = elem.key();
-        if (reference.contains(key)) {
-          // 'key' is being removed, only keep it in the embedded index, if it is required to shadow
-          // a value from the reference index.
-          newEmbedded.add(indexElement(key, null));
-        }
-      } else {
-        newEmbedded.add(elem);
-      }
+    var obsolete = new ArrayList<IndexKey>();
+    for (var it = embedded.elementIterator(); it.hasNext(); ) {
+      var entry = it.next();
+      if (!entry.hasValue() && !reference.contains(entry.key())) obsolete.add(entry.key());
     }
-    indexedBuilder.embedded(newEmbedded.serialize());
+    for (var key : obsolete) embedded.remove(key);
+    // Mutate the request-owned leaf rather than rebuilding all decoded values/keys.
+    indexedBuilder.embedded(embedded.serialize());
   }
 
   private void spillOutEmbedded(
@@ -149,7 +145,7 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     updateAffectedStripes(mutableReference);
 
     // Set the new, empty embedded index
-    indexedBuilder.embedded(emptyImmutableIndex().serialize());
+    indexedBuilder.embedded(newStoreIndex(serializer, embeddedWriteVersion).serialize());
 
     // Collect the surviving stripes - stripes will and must be ordered by the first/last keys over
     // all stripes.
@@ -190,7 +186,11 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     for (var stripe : mutableReference.stripes()) {
       // Only use stripe if it (still) has elements.
       if (stripe.hasElements()) {
-        var serSize = stripe.estimatedSerializedSize();
+        var leaf = stripe.stripes().getFirst();
+        var serSize =
+            !stripe.isModified() && leaf instanceof MutableV2IndexImpl<?> v2
+                ? v2.originalSerializedSize()
+                : stripe.estimatedSerializedSize();
         var maxStripeSize = params.maxIndexStripeSize().asLong();
         if (serSize > maxStripeSize) {
           // The stripe became too big, needs to be split further
@@ -248,8 +248,11 @@ final class UpdatableIndexImpl<V> extends AbstractLayeredIndexImpl<V> implements
     var maxEmbeddedEntrySizeBeforeForcedSpill =
         Math.max(1L, maxEmbeddedIndexSize / FORCE_SPILL_MAX_EMBEDDED_ENTRY_DIVISOR);
     var entrySerializedSizeUpperBound =
-        IndexImpl.singleEntrySerializedSizeUpperBound(
-            element.key(), element.contentSerializedSize(serializer));
+        embeddedWriteVersion == 1
+            ? IndexImpl.singleEntrySerializedSizeUpperBound(
+                element.key(), element.contentSerializedSize(serializer))
+            : V2IndexFormat.singleEntrySerializedSizeUpperBound(
+                element.key().serializedSize(), element.contentSerializedSize(serializer));
 
     hasOversizedEmbeddedEntry |=
         entrySerializedSizeUpperBound > maxEmbeddedEntrySizeBeforeForcedSpill;

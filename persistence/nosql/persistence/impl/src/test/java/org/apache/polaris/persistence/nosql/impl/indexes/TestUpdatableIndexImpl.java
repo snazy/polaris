@@ -74,13 +74,13 @@ public class TestUpdatableIndexImpl {
   @ParameterizedTest
   @ValueSource(ints = {0, 1, 2})
   public void reuseUntouchedContainerAfterReadsAndMissingKeyRemoval(int stripeCount) {
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var value = randomObjId();
     embedded.put(key("embedded"), value);
     var containerBuilder = ImmutableIndexContainer.<ObjRef>builder().embedded(embedded.serialize());
     for (var i = 0; i < stripeCount; i++) {
       var stripeKey = key("stripe-" + i);
-      var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+      var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
       stripe.put(stripeKey, value);
       var stripeObj =
           persistence.write(
@@ -129,7 +129,7 @@ public class TestUpdatableIndexImpl {
 
   @Test
   public void modifiedContainerPreservesNewValue() {
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var originalValue = randomObjId();
     embedded.put(key("original"), originalValue);
     var container =
@@ -151,7 +151,7 @@ public class TestUpdatableIndexImpl {
 
   @Test
   public void untouchedOversizedEmbeddedIndexStillSpills() {
-    var embedded = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     var entryKey = key("oversized");
     var value = objTestValueOfSize((int) persistence.params().maxEmbeddedIndexSize().asLong() + 1);
     embedded.put(entryKey, value);
@@ -467,7 +467,8 @@ public class TestUpdatableIndexImpl {
             requireNonNull(persistence.fetch(stripeToEmpty.segment(), IndexStripeObj.class))
                 .index(),
             OBJ_TEST_SERIALIZER,
-            true);
+            true,
+            1);
     stripeObj.asKeyList().forEach(updatable::remove);
 
     // Index was NOT spilled-out yet.
@@ -623,7 +624,7 @@ public class TestUpdatableIndexImpl {
         persistence.params().maxEmbeddedIndexSize().asLong()
             / UpdatableIndexImpl.FORCE_SPILL_MAX_EMBEDDED_ENTRY_DIVISOR;
     var value = objTestValueOfSize(valueSizeAroundUpperBound(key, maxEmbeddedEntrySize, 1));
-    var legacyEmbedded = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var legacyEmbedded = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     legacyEmbedded.add(indexElement(key, value));
 
     var updatable =
@@ -647,7 +648,7 @@ public class TestUpdatableIndexImpl {
         objTestValueOfSize(
             smallestValueSizeAboveActualSingleEntrySerializedSize(
                 key, persistence.params().maxIndexStripeSize().asLong()));
-    var legacyReference = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var legacyReference = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     legacyReference.add(indexElement(key, value));
 
     soft.assertThat((long) legacyReference.serialize().remaining())
@@ -659,7 +660,7 @@ public class TestUpdatableIndexImpl {
             IndexStripeObj.class);
     var legacyIndexContainer =
         ImmutableIndexContainer.<ObjTestValue>builder()
-            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER).serialize())
+            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER, 1).serialize())
             .addStripe(IndexStripe.indexStripe(key, key, objRef(stripeObj)))
             .build();
 
@@ -698,7 +699,7 @@ public class TestUpdatableIndexImpl {
     var targetStripeSize = persistence.params().maxIndexStripeSize().asLong();
     var sharedValue = objTestValueFromString("cafe");
     var keyPrefix = "catalog/" + "shared-prefix/".repeat(32);
-    var prefixStripe = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var prefixStripe = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     IndexKey middlePrefixKey = null;
     for (var i = 0; i < 512; i++) {
       var key = key(keyPrefix + "table-%03d".formatted(i));
@@ -724,7 +725,7 @@ public class TestUpdatableIndexImpl {
                 persistence.params().maxEmbeddedIndexSize().asLong()
                     / UpdatableIndexImpl.FORCE_SPILL_MAX_EMBEDDED_ENTRY_DIVISOR,
                 1));
-    var secondStripe = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var secondStripe = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     secondStripe.add(indexElement(secondStripeKey, secondStripeValue));
 
     var prefixStripeObj =
@@ -738,7 +739,7 @@ public class TestUpdatableIndexImpl {
 
     var legacyIndexContainer =
         ImmutableIndexContainer.<ObjTestValue>builder()
-            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER).serialize())
+            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER, 1).serialize())
             .addStripe(
                 IndexStripe.indexStripe(firstPrefixKey, lastPrefixKey, objRef(prefixStripeObj)))
             .addStripe(
@@ -794,7 +795,7 @@ public class TestUpdatableIndexImpl {
                     / UpdatableIndexImpl.FORCE_SPILL_MAX_EMBEDDED_ENTRY_DIVISOR,
                 1));
 
-    var legacyOversizedStripe = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var legacyOversizedStripe = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     legacyOversizedStripe.add(indexElement(firstKey, firstValue));
     legacyOversizedStripe.add(indexElement(largeKey, largeValue));
     legacyOversizedStripe.add(indexElement(lastLegacyKey, lastLegacyValue));
@@ -802,7 +803,7 @@ public class TestUpdatableIndexImpl {
     soft.assertThat((long) legacyOversizedStripe.serialize().remaining())
         .isGreaterThan(targetStripeSize);
 
-    var legacySmallStripe = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var legacySmallStripe = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     legacySmallStripe.add(indexElement(secondStripeKey, secondStripeValue));
 
     var oversizedStripeObj =
@@ -817,7 +818,7 @@ public class TestUpdatableIndexImpl {
 
     var legacyIndexContainer =
         ImmutableIndexContainer.<ObjTestValue>builder()
-            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER).serialize())
+            .embedded(newStoreIndex(OBJ_TEST_SERIALIZER, 1).serialize())
             .addStripe(IndexStripe.indexStripe(firstKey, lastLegacyKey, objRef(oversizedStripeObj)))
             .addStripe(
                 IndexStripe.indexStripe(secondStripeKey, secondStripeKey, objRef(smallStripeObj)))
@@ -901,13 +902,13 @@ public class TestUpdatableIndexImpl {
       List<InternalIndexElement<V>> referenceContents,
       List<InternalIndexElement<V>> embeddedContents,
       IndexValueSerializer<V> serializer) {
-    var embedded = newStoreIndex(serializer);
+    var embedded = newStoreIndex(serializer, 1);
     embeddedContents.forEach(embedded::add);
 
     var indexContainerBuilder = ImmutableIndexContainer.<V>builder().embedded(embedded.serialize());
 
     if (!referenceContents.isEmpty()) {
-      var reference = newStoreIndex(serializer);
+      var reference = newStoreIndex(serializer, 1);
       referenceContents.forEach(reference::add);
       var stripeObj =
           persistence.write(

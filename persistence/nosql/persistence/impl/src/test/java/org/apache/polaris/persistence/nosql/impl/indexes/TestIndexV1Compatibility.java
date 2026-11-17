@@ -63,12 +63,12 @@ class TestIndexV1Compatibility {
     CURRENT {
       @Override
       <V> IndexSpi<V> create(IndexValueSerializer<V> codec) {
-        return IndexesInternal.newStoreIndex(codec);
+        return IndexesInternal.newStoreIndex(codec, 1);
       }
 
       @Override
       <V> IndexSpi<V> load(ByteBuffer bytes, IndexValueSerializer<V> codec) {
-        return IndexesInternal.deserializeStoreIndex(bytes, codec, true);
+        return IndexesInternal.deserializeStoreIndex(bytes, codec, true, 1);
       }
     };
 
@@ -157,7 +157,7 @@ class TestIndexV1Compatibility {
                     INDEX_KEY_SERIALIZER);
               }
               assertContents(
-                  IndexesInternal.deserializeStoreIndex(serialized, INDEX_KEY_SERIALIZER, false),
+                  IndexesInternal.deserializeStoreIndex(serialized, INDEX_KEY_SERIALIZER, false, 1),
                   expectedPart,
                   INDEX_KEY_SERIALIZER);
               part.elementIterator().forEachRemaining(combined::add);
@@ -202,7 +202,7 @@ class TestIndexV1Compatibility {
         assertThat(index.getElement(key("absent"))).isNull();
         var bytes = index.serialize();
         assertContents(
-            IndexesInternal.deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false),
+            IndexesInternal.deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false, 1),
             model,
             INDEX_KEY_SERIALIZER);
         assertThat(index.estimatedSerializedSize()).isGreaterThanOrEqualTo(bytes.remaining());
@@ -218,7 +218,7 @@ class TestIndexV1Compatibility {
               new Snapshot<>(
                   bytes,
                   copy(bytes),
-                  IndexesInternal.deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false),
+                  IndexesInternal.deserializeStoreIndex(bytes, INDEX_KEY_SERIALIZER, false, 1),
                   new TreeMap<>(model)));
         }
         for (var snapshot : snapshots) {
@@ -254,7 +254,7 @@ class TestIndexV1Compatibility {
       for (var reader : Implementation.values()) {
         assertContents(reader.load(bytes, codec), model, codec);
       }
-      assertContents(IndexesInternal.deserializeStoreIndex(bytes, codec, false), model, codec);
+      assertContents(IndexesInternal.deserializeStoreIndex(bytes, codec, false, 1), model, codec);
       index = implementation.load(bytes, codec);
       assertThat(copy(snapshot)).containsExactly(snapshotCopy);
     }
@@ -357,7 +357,7 @@ class TestIndexV1Compatibility {
       assertContents(index, entries, INDEX_KEY_SERIALIZER);
       var readOnly =
           IndexesInternal.deserializeStoreIndex(
-              ByteBuffer.wrap(golden), INDEX_KEY_SERIALIZER, false);
+              ByteBuffer.wrap(golden), INDEX_KEY_SERIALIZER, false, 1);
       assertContents(readOnly, entries, INDEX_KEY_SERIALIZER);
       assertThat(copy(readOnly.serialize())).containsExactly(golden);
       assertThat(copy(index.serialize())).containsExactly(golden);
@@ -370,7 +370,7 @@ class TestIndexV1Compatibility {
       }
       assertContents(readOnly, entries, INDEX_KEY_SERIALIZER);
       assertContents(
-          IndexesInternal.deserializeStoreIndex(index.serialize(), INDEX_KEY_SERIALIZER, false),
+          IndexesInternal.deserializeStoreIndex(index.serialize(), INDEX_KEY_SERIALIZER, false, 1),
           updated,
           INDEX_KEY_SERIALIZER);
       assertThat(golden(names.get(i))).containsExactly(golden);
@@ -387,7 +387,7 @@ class TestIndexV1Compatibility {
         OBJ_REF_SERIALIZER);
     assertContents(
         IndexesInternal.deserializeStoreIndex(
-            ByteBuffer.wrap(golden("objref-parts")), OBJ_REF_SERIALIZER, false),
+            ByteBuffer.wrap(golden("objref-parts")), OBJ_REF_SERIALIZER, false, 1),
         expected,
         OBJ_REF_SERIALIZER);
   }

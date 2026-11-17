@@ -108,6 +108,9 @@ public final class PersistenceImplementation implements Persistence {
     checkArgument(
         params.referencePreviousHeadCount() > 0, "referencePreviousHeadCount must be positive");
 
+    checkArgument(
+        params.preferredIndexWriteVersion() == 1 || params.preferredIndexWriteVersion() == 2,
+        "preferredIndexWriteVersion must be 1 or 2");
     this.backend = backend;
     this.params = params;
     this.realmId = realmId;

@@ -52,6 +52,7 @@ final class RepresentativeIndexWorkload<V> {
     LEGACY,
     // Production D3 reader for reads; production mutable IndexImpl for writes.
     BASELINE,
+    PRODUCTION_V2,
     PREFIX_ENDS,
     FRONT_ENDS,
     FRONT_PREFIX_ENDS
@@ -69,6 +70,7 @@ final class RepresentativeIndexWorkload<V> {
 
   enum Operation {
     UPDATE,
+    INSERT,
     MIXED
   }
 
@@ -305,6 +307,7 @@ final class RepresentativeIndexWorkload<V> {
 
   private ByteBuffer encode(IndexSpi<V> index) {
     return switch (variant) {
+      case PRODUCTION_V2 -> V2IndexWriter.write(index, codec, V2IndexFormat.DEFAULT);
       case PREFIX_ENDS, FRONT_ENDS, FRONT_PREFIX_ENDS ->
           SplitV2IndexWriter.write(index, codec, options);
       default -> index.serialize();
@@ -318,7 +321,7 @@ final class RepresentativeIndexWorkload<V> {
   IndexSpi<V> read(ByteBuffer bytes) {
     return switch (variant) {
       case LEGACY -> IndexLegacyImpl.deserializeStoreIndex(bytes.duplicate(), codec);
-      case BASELINE -> IndexesInternal.deserializeStoreIndex(bytes, codec, false);
+      case BASELINE, PRODUCTION_V2 -> IndexesInternal.deserializeStoreIndex(bytes, codec, false, 1);
       case PREFIX_ENDS, FRONT_ENDS, FRONT_PREFIX_ENDS ->
           new SplitV2IndexReader<>(bytes.duplicate(), codec);
     };
@@ -353,7 +356,8 @@ final class RepresentativeIndexWorkload<V> {
         changes.add(
             new SplitV2IndexWriter.Change<>(key, null)); // Physical removal, never tombstone.
       } else {
-        boolean insertion = operation == Operation.MIXED && i % 3 == 2;
+        boolean insertion =
+            operation == Operation.INSERT || (operation == Operation.MIXED && i % 3 == 2);
         var entry = insertion ? dataset.creationOrder().get(future + i) : entriesByKey.get(key);
         var value = values.apply(entry, insertion ? 0 : revision);
         if (!insertion && Objects.equals(value, logical.get(key)))
@@ -396,7 +400,8 @@ final class RepresentativeIndexWorkload<V> {
     IndexSpi<V> view =
         switch (implementation) {
           case LEGACY -> IndexLegacyImpl.deserializeStoreIndex(source.duplicate(), codec);
-          case BASELINE -> IndexesInternal.deserializeStoreIndex(source, codec, true);
+          case BASELINE, PRODUCTION_V2 ->
+              IndexesInternal.deserializeStoreIndex(source, codec, true, 1);
           default -> read(source);
         };
     long observed = 0;
@@ -434,7 +439,9 @@ final class RepresentativeIndexWorkload<V> {
                 ? IndexLegacyImpl.class
                 : variant == Variant.BASELINE
                     ? operation == null ? ReadOnlyIndexImpl.class : IndexImpl.class
-                    : operation == null ? SplitV2IndexReader.class : SplitV2IndexWriter.class)
+                    : variant == Variant.PRODUCTION_V2
+                        ? operation == null ? ReadOnlyV2IndexImpl.class : MutableV2IndexImpl.class
+                        : operation == null ? SplitV2IndexReader.class : SplitV2IndexWriter.class)
             .getName());
     result.put(
         "datasetId",

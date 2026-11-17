@@ -43,14 +43,36 @@ final class IndexesInternal {
     return new ImmutableEmptyIndexImpl<>();
   }
 
-  static <V> IndexSpi<V> newStoreIndex(IndexValueSerializer<V> serializer) {
-    return new IndexImpl<>(serializer);
+  static <V> IndexSpi<V> newStoreIndex(IndexValueSerializer<V> serializer, int version) {
+    checkArgument(version == 1 || version == 2, "Unsupported index write version: %s", version);
+    return version == 2 ? MutableV2IndexImpl.empty(serializer) : new IndexImpl<>(serializer);
+  }
+
+  static int serializedIndexVersion(ByteBuffer bytes) {
+    int version = Byte.toUnsignedInt(bytes.get(bytes.position()));
+    checkArgument(
+        version == 1 || version == 2, "Unsupported serialized index version: %s", version);
+    return version;
   }
 
   static <V> IndexSpi<V> deserializeStoreIndex(
-      ByteBuffer serialized, IndexValueSerializer<V> ser, boolean mutable) {
+      ByteBuffer serialized,
+      IndexValueSerializer<V> ser,
+      boolean mutable,
+      int preferredWriteVersion) {
+    checkArgument(
+        preferredWriteVersion == 1 || preferredWriteVersion == 2,
+        "Unsupported index write version: %s",
+        preferredWriteVersion);
+    int version = serializedIndexVersion(serialized);
+    if (version == V2IndexFormat.VERSION) {
+      var read = new ReadOnlyV2IndexImpl<>(serialized, ser);
+      return mutable ? new MutableV2IndexImpl<>(read) : read;
+    }
+    if (mutable && preferredWriteVersion == 2)
+      return new MutableV2IndexImpl<>(new ReadOnlyIndexImpl<>(serialized, ser), ser);
     return mutable
-        ? IndexImpl.deserializeStoreIndex(serialized.duplicate(), ser)
+        ? IndexImpl.deserializeStoreIndex(serialized.slice(), ser)
         : new ReadOnlyIndexImpl<>(serialized, ser);
   }
 
@@ -125,11 +147,13 @@ final class IndexesInternal {
       @Nullable IndexContainer<V> indexContainer,
       @NonNull Persistence persistence,
       @NonNull IndexValueSerializer<V> indexValueSerializer,
-      boolean mutable) {
+      boolean mutable,
+      int preferredWriteVersion) {
     if (indexContainer != null) {
       var commitStripes = indexContainer.stripes();
       if (!commitStripes.isEmpty()) {
-        return referenceIndexFromStripes(persistence, commitStripes, indexValueSerializer, mutable);
+        return referenceIndexFromStripes(
+            persistence, commitStripes, indexValueSerializer, mutable, preferredWriteVersion);
       }
     }
 
@@ -140,7 +164,8 @@ final class IndexesInternal {
       @NonNull Persistence persistence,
       @NonNull List<IndexStripe> indexStripes,
       @NonNull IndexValueSerializer<V> indexValueSerializer,
-      boolean mutable) {
+      boolean mutable,
+      int preferredWriteVersion) {
     var stripes = new ArrayList<IndexSpi<V>>(indexStripes.size());
     var firstLastKeys = new ArrayList<IndexKey>(indexStripes.size() * 2);
 
@@ -155,7 +180,13 @@ final class IndexesInternal {
                   () -> {
                     IndexSpi<V> l = loaded[idx];
                     if (l == null) {
-                      l = loadIndexSegment(persistence, s.segment(), indexValueSerializer, mutable);
+                      l =
+                          loadIndexSegment(
+                              persistence,
+                              s.segment(),
+                              indexValueSerializer,
+                              mutable,
+                              preferredWriteVersion);
                       loaded[idx] = l;
                     }
                     return l;
@@ -185,7 +216,8 @@ final class IndexesInternal {
             }
           }
           IndexSpi<V>[] indexes =
-              loadIndexSegments(persistence, ids, indexValueSerializer, mutable);
+              loadIndexSegments(
+                  persistence, ids, indexValueSerializer, mutable, preferredWriteVersion);
           for (var i = 0; i < indexes.length; i++) {
             var idx = indexes[i];
             if (idx != null) {
@@ -202,7 +234,8 @@ final class IndexesInternal {
       @NonNull Persistence persistence,
       @NonNull ObjRef[] indexes,
       @NonNull IndexValueSerializer<V> indexValueSerializer,
-      boolean mutable) {
+      boolean mutable,
+      int preferredWriteVersion) {
     var objs = persistence.fetchMany(IndexStripeObj.class, indexes);
     @SuppressWarnings("unchecked")
     IndexSpi<V>[] r = new IndexSpi[indexes.length];
@@ -210,7 +243,8 @@ final class IndexesInternal {
       var index = objs[i];
       if (index != null) {
         r[i] =
-            deserializeStoreIndex(index.index(), indexValueSerializer, mutable)
+            deserializeStoreIndex(
+                    index.index(), indexValueSerializer, mutable, preferredWriteVersion)
                 .setObjId(indexes[i]);
       }
     }
@@ -221,12 +255,15 @@ final class IndexesInternal {
       @NonNull Persistence persistence,
       @NonNull ObjRef indexId,
       @NonNull IndexValueSerializer<V> indexValueSerializer,
-      boolean mutable) {
+      boolean mutable,
+      int preferredWriteVersion) {
     var index = persistence.fetch(indexId, IndexStripeObj.class);
     if (index == null) {
       throw new IllegalStateException(
           format("Commit %s references a reference index, which does not exist", indexId));
     }
-    return deserializeStoreIndex(index.index(), indexValueSerializer, mutable).setObjId(indexId);
+    return deserializeStoreIndex(
+            index.index(), indexValueSerializer, mutable, preferredWriteVersion)
+        .setObjId(indexId);
   }
 }

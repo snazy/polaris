@@ -50,7 +50,7 @@ public class TestAbstractLayeredIndexImpl {
     var reference = basicIndexTestSet().keyIndex();
     soft.assertThat(reference.isModified()).isFalse();
 
-    var updates = newStoreIndex(OBJ_REF_SERIALIZER);
+    var updates = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     for (var c = 'a'; c <= 'z'; c++) {
       updates.add(indexElement(key(c + "foo"), randomObjId()));
     }
@@ -58,7 +58,7 @@ public class TestAbstractLayeredIndexImpl {
     soft.assertThat(updates.isModified()).isTrue();
     soft.assertThat(layered.isModified()).isTrue();
 
-    updates = deserializeStoreIndex(updates.serialize(), OBJ_REF_SERIALIZER, true);
+    updates = deserializeStoreIndex(updates.serialize(), OBJ_REF_SERIALIZER, true, 1);
     layered = layeredIndex(reference, updates);
     soft.assertThat(updates.isModified()).isFalse();
     soft.assertThat(layered.isModified()).isFalse();
@@ -76,7 +76,7 @@ public class TestAbstractLayeredIndexImpl {
     var lazyReference = lazyStoreIndex(() -> reference, null, null, true);
     soft.assertThat(lazyReference.isLoaded()).isFalse();
 
-    var updates = newStoreIndex(OBJ_REF_SERIALIZER);
+    var updates = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var lazyUpdates = lazyStoreIndex(() -> updates, null, null, true);
     soft.assertThat(lazyUpdates.isLoaded()).isFalse();
 
@@ -105,7 +105,7 @@ public class TestAbstractLayeredIndexImpl {
     }
 
     var expected = new ArrayList<InternalIndexElement<ObjRef>>();
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     reference
         .elementIterator()
         .forEachRemaining(el -> {
@@ -184,9 +184,9 @@ public class TestAbstractLayeredIndexImpl {
 
   @Test
   public void firstLastEstimated() {
-    var index1 = newStoreIndex(OBJ_REF_SERIALIZER);
-    var index2 = newStoreIndex(OBJ_REF_SERIALIZER);
-    var index3 = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index1 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var index2 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var index3 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     index1.add(indexElement(key("aaa"), randomObjId()));
     index2.add(indexElement(key("bbb"), randomObjId()));
 
@@ -212,8 +212,8 @@ public class TestAbstractLayeredIndexImpl {
 
   @Test
   public void stateRelated() {
-    var index1 = newStoreIndex(OBJ_REF_SERIALIZER);
-    var index2 = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index1 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var index2 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var layered = layeredIndex(index1, index2);
 
     soft.assertThat(layered.isMutable()).isFalse();
@@ -223,8 +223,8 @@ public class TestAbstractLayeredIndexImpl {
 
   @Test
   public void unsupported() {
-    var index1 = newStoreIndex(OBJ_REF_SERIALIZER);
-    var index2 = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index1 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var index2 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var layered = layeredIndex(index1, index2);
 
     soft.assertThatThrownBy(layered::serialize).isInstanceOf(UnsupportedOperationException.class);

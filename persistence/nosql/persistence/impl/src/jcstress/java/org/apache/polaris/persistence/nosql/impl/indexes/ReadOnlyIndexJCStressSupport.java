@@ -56,7 +56,7 @@ final class ReadOnlyIndexJCStressSupport {
   }
 
   private static ByteBuffer serialized() {
-    var writer = newStoreIndex(new Codec(new AtomicInteger()));
+    var writer = newStoreIndex(new Codec(new AtomicInteger()), 1);
     for (var i = 0; i < KEYS.length; i++) {
       writer.add(indexElement(KEYS[i], i == 63 ? null : new Value(i)));
     }
@@ -64,7 +64,21 @@ final class ReadOnlyIndexJCStressSupport {
   }
 
   static IndexSpi<Value> read(AtomicInteger decodes) {
-    return deserializeStoreIndex(BYTES, new Codec(decodes), false);
+    return deserializeStoreIndex(BYTES, new Codec(decodes), false, 1);
+  }
+
+  private static final ByteBuffer V2_BYTES =
+      V2IndexWriter.write(
+          read(new AtomicInteger()),
+          new Codec(new AtomicInteger()),
+          new V2IndexFormat.Options(
+              V2IndexFormat.Layout.FRONT_PREFIX_ENDS,
+              8,
+              V2IndexFormat.DirectoryEncoding.PREFIX,
+              3));
+
+  static IndexSpi<Value> readV2(AtomicInteger decodes) {
+    return deserializeStoreIndex(V2_BYTES, new Codec(decodes), false, 1);
   }
 
   private record Codec(AtomicInteger decodes) implements IndexValueSerializer<Value> {

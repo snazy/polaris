@@ -27,6 +27,7 @@ build:
 |----------|---------------|------|-------------|
 | `polaris.persistence.type` |  | `string` | The type of the persistence to use. Must be a registered (`org.apache.polaris.core.persistence.MetaStoreManagerFactory`) identifier.  |
 | `polaris.persistence.auto-bootstrap-types` |  | `list of string` |  |
+| `polaris.persistence.preferred-index-write-version` | `1` | `int` | Preferred NoSQL index write format (`1` or `2`). Both versions remain readable; existing V2 is not demoted. Enable `2` only when all active and intended rollback binaries support V2. |
 | `polaris.persistence.reference-previous-head-count` | `20` | `int` |  |
 | `polaris.persistence.max-index-stripes` | `20` | `int` |  |
 | `polaris.persistence.max-embedded-index-size` | `32k` | `MemorySize` |  |

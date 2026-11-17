@@ -40,7 +40,14 @@ import org.openjdk.jmh.annotations.Warmup;
 public class RepresentativeIndexMutationBench {
   @State(Scope.Thread)
   public static class Data extends RepresentativeIndexReadBench.Common {
-    @Param({"LEGACY", "BASELINE", "PREFIX_ENDS", "FRONT_ENDS", "FRONT_PREFIX_ENDS"})
+    @Param({
+      "LEGACY",
+      "BASELINE",
+      "PRODUCTION_V2",
+      "PREFIX_ENDS",
+      "FRONT_ENDS",
+      "FRONT_PREFIX_ENDS"
+    })
     public String variant;
 
     @Param({"16", "256"})

@@ -48,7 +48,8 @@ public class TestImmutableEmptyIndexImpl {
     soft.assertThat(index.last()).isNull();
     soft.assertThat(index.estimatedSerializedSize()).isEqualTo(2);
     soft.assertThat(index.serialize()).isEqualTo(ByteBuffer.wrap(new byte[] {(byte) 1, (byte) 0}));
-    soft.assertThat(deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true).asKeyList())
+    soft.assertThat(
+            deserializeStoreIndex(index.serialize(), OBJ_REF_SERIALIZER, true, 1).asKeyList())
         .isEqualTo(index.asKeyList());
     soft.assertThat(index.asKeyList()).isEmpty();
     soft.assertThat(index.stripes()).isEmpty();
@@ -73,7 +74,7 @@ public class TestImmutableEmptyIndexImpl {
   @Test
   public void serialization() {
     var index = IndexesInternal.<ObjRef>emptyImmutableIndex();
-    var mutable = newStoreIndex(OBJ_REF_SERIALIZER);
+    var mutable = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     soft.assertThat(index.serialize()).isEqualTo(mutable.serialize());
   }
 }

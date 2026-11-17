@@ -19,9 +19,14 @@
 package org.apache.polaris.persistence.nosql.weld;
 
 import static org.apache.polaris.persistence.nosql.api.Realms.SYSTEM_REALM_ID;
+import static org.apache.polaris.persistence.nosql.api.index.IndexKey.INDEX_KEY_SERIALIZER;
+import static org.apache.polaris.persistence.nosql.api.index.IndexKey.key;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.polaris.persistence.nosql.api.Persistence;
+import org.apache.polaris.persistence.nosql.api.PersistenceParams;
 import org.apache.polaris.persistence.nosql.api.RealmPersistenceFactory;
+import org.apache.polaris.persistence.nosql.api.StartupPersistence;
 import org.apache.polaris.persistence.nosql.api.SystemPersistence;
 import org.apache.polaris.persistence.nosql.api.backend.Backend;
 import org.apache.polaris.persistence.nosql.realms.api.RealmManagement;
@@ -40,6 +45,40 @@ public class TestProviders {
   @InjectSoftAssertions SoftAssertions soft;
 
   @WeldSetup WeldInitiator weld = WeldInitiator.performDefaultDiscovery();
+
+  @Test
+  void configuredIndexVersionReachesRealmAndSystemButStartupKeepsConservativeDefault() {
+    MutablePersistenceParams.setCurrent(
+        PersistenceParams.BuildablePersistenceParams.builder()
+            .preferredIndexWriteVersion(2)
+            .build());
+    try {
+      var realm =
+          weld.select(RealmPersistenceFactory.class)
+              .get()
+              .newBuilder()
+              .realmId("index-version-test")
+              .build();
+      var system = weld.select(Persistence.class, new SystemPersistence.Literal()).get();
+      var startup = weld.select(Persistence.class, new StartupPersistence.Literal()).get();
+      assertThat(realm.params().preferredIndexWriteVersion()).isEqualTo(2);
+      assertThat(system.params().preferredIndexWriteVersion()).isEqualTo(2);
+      assertThat(startup.params().preferredIndexWriteVersion()).isEqualTo(1);
+      var index = realm.buildWriteIndex(null, INDEX_KEY_SERIALIZER);
+      index.put(key("name"), key("value"));
+      var container =
+          index.toIndexed(
+              "index-",
+              (name, obj) -> {
+                throw new AssertionError("Unexpected spill");
+              });
+      assertThat(container.embedded().get(container.embedded().position())).isEqualTo((byte) 2);
+      assertThat(startup.buildReadIndex(container, INDEX_KEY_SERIALIZER).get(key("name")))
+          .isEqualTo(key("value"));
+    } finally {
+      MutablePersistenceParams.reset();
+    }
+  }
 
   @Test
   public void checkProviders() {

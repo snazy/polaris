@@ -19,15 +19,76 @@
 package org.apache.polaris.persistence.nosql.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.smallrye.config.ConfigValidationException;
 import io.smallrye.config.PropertiesConfigSource;
 import io.smallrye.config.SmallRyeConfigBuilder;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.polaris.persistence.nosql.api.commit.RetryConfig.BuildableRetryConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestPersistenceParams {
+  private static PersistenceParams mapping(Map<String, String> properties) {
+    return new SmallRyeConfigBuilder()
+        .withMapping(PersistenceParams.class)
+        .addDiscoveredConverters()
+        .withSources(new PropertiesConfigSource(properties, "test"))
+        .build()
+        .getConfigMapping(PersistenceParams.class);
+  }
+
+  @Test
+  void preferredIndexWriteVersionDefaultsToV1() {
+    assertThat(
+            PersistenceParams.BuildablePersistenceParams.builder()
+                .build()
+                .preferredIndexWriteVersion())
+        .isEqualTo(1);
+    assertThat(mapping(Map.of()).preferredIndexWriteVersion()).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void preferredIndexWriteVersionAllowsSupportedVersions(int version) {
+    assertThat(
+            PersistenceParams.BuildablePersistenceParams.builder()
+                .preferredIndexWriteVersion(version)
+                .build()
+                .preferredIndexWriteVersion())
+        .isEqualTo(version);
+    assertThat(
+            mapping(
+                    Map.of(
+                        "polaris.persistence.preferred-index-write-version",
+                        Integer.toString(version)))
+                .preferredIndexWriteVersion())
+        .isEqualTo(version);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 0, 3, Integer.MAX_VALUE})
+  void preferredIndexWriteVersionRejectsUnsupportedProgrammaticValues(int version) {
+    assertThatThrownBy(() ->
+            PersistenceParams.BuildablePersistenceParams.builder()
+                .preferredIndexWriteVersion(version)
+                .build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("preferredIndexWriteVersion");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"-1", "0", "3", "2147483648", "not-a-number"})
+  void preferredIndexWriteVersionRejectsUnsupportedMappedValues(String version) {
+    assertThatThrownBy(
+            () -> mapping(Map.of("polaris.persistence.preferred-index-write-version", version)))
+        .isInstanceOf(ConfigValidationException.class)
+        .hasMessageContaining("preferred-index-write-version");
+  }
+
   @Test
   public void retryConfig() {
     var params =

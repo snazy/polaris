@@ -65,6 +65,6 @@ record V2TestData(ByteBuffer serialized, List<IndexKey> keys) {
   }
 
   IndexSpi<ObjRef> mutable() {
-    return IndexesInternal.deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
+    return IndexesInternal.deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true, 1);
   }
 }

@@ -40,6 +40,11 @@ public class MutablePersistenceParams implements PersistenceParams {
   }
 
   @Override
+  public int preferredIndexWriteVersion() {
+    return current.preferredIndexWriteVersion();
+  }
+
+  @Override
   public int referencePreviousHeadCount() {
     return current.referencePreviousHeadCount();
   }

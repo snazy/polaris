@@ -22,6 +22,7 @@ import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.emptyImmutableIndex;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.newStoreIndex;
 import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.referenceIndex;
+import static org.apache.polaris.persistence.nosql.impl.indexes.IndexesInternal.serializedIndexVersion;
 
 import org.apache.polaris.persistence.nosql.api.Persistence;
 import org.apache.polaris.persistence.nosql.api.index.Index;
@@ -40,8 +41,9 @@ public final class IndexesProvider {
       @NonNull Persistence persistence,
       @NonNull IndexValueSerializer<V> indexValueSerializer) {
     if (indexContainer != null) {
-      var embedded = deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer, false);
-      var reference = referenceIndex(indexContainer, persistence, indexValueSerializer, false);
+      var embedded =
+          deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer, false, 1);
+      var reference = referenceIndex(indexContainer, persistence, indexValueSerializer, false, 1);
       return new ReadOnlyIndex<>(
           reference != null ? new ReadOnlyLayeredIndexImpl<>(reference, embedded) : embedded);
     }
@@ -63,13 +65,19 @@ public final class IndexesProvider {
       @Nullable IndexContainer<V> indexContainer,
       @NonNull Persistence persistence,
       @NonNull IndexValueSerializer<V> indexValueSerializer) {
+    int writeVersion =
+        Math.max(
+            persistence.params().preferredIndexWriteVersion(),
+            indexContainer == null ? 1 : serializedIndexVersion(indexContainer.embedded()));
     var embedded =
         indexContainer != null
-            ? deserializeStoreIndex(indexContainer.embedded(), indexValueSerializer, true)
-            : newStoreIndex(indexValueSerializer);
-    var reference = referenceIndex(indexContainer, persistence, indexValueSerializer, true);
+            ? deserializeStoreIndex(
+                indexContainer.embedded(), indexValueSerializer, true, writeVersion)
+            : newStoreIndex(indexValueSerializer, writeVersion);
+    var reference =
+        referenceIndex(indexContainer, persistence, indexValueSerializer, true, writeVersion);
     if (reference == null) {
-      reference = newStoreIndex(indexValueSerializer);
+      reference = newStoreIndex(indexValueSerializer, writeVersion);
     }
 
     return new UpdatableIndexImpl<>(

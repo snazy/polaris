@@ -43,10 +43,10 @@ final class LazyIndexImplJCStressSupport {
   private LazyIndexImplJCStressSupport() {}
 
   static IndexSpi<ObjRef> baseIndex() {
-    var base = newStoreIndex(OBJ_REF_SERIALIZER);
+    var base = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     base.add(indexElement(FIRST_KEY, OBJ_REF));
     base.add(indexElement(LAST_KEY, OBJ_REF));
-    return deserializeStoreIndex(base.serialize(), OBJ_REF_SERIALIZER, true);
+    return deserializeStoreIndex(base.serialize(), OBJ_REF_SERIALIZER, true, 1);
   }
 
   static IndexSpi<ObjRef> lazyIndex(Supplier<IndexSpi<ObjRef>> supplier) {

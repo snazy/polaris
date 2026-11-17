@@ -21,12 +21,14 @@ package org.apache.polaris.persistence.nosql.api;
 import static com.google.common.base.Preconditions.checkState;
 
 import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithConverter;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
 import java.util.stream.Stream;
 import org.apache.polaris.immutables.PolarisImmutable;
 import org.apache.polaris.misc.types.memorysize.MemorySize;
 import org.apache.polaris.persistence.nosql.api.commit.RetryConfig;
+import org.eclipse.microprofile.config.spi.Converter;
 import org.immutables.value.Value;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
@@ -35,6 +37,30 @@ import tools.jackson.databind.annotation.JsonSerialize;
 @JsonSerialize(as = ImmutableBuildablePersistenceParams.class)
 @JsonDeserialize(as = ImmutableBuildablePersistenceParams.class)
 public interface PersistenceParams {
+  String DEFAULT_PREFERRED_INDEX_WRITE_VERSION_STRING = "1";
+  int DEFAULT_PREFERRED_INDEX_WRITE_VERSION =
+      Integer.parseInt(DEFAULT_PREFERRED_INDEX_WRITE_VERSION_STRING);
+
+  /**
+   * Preferred index write format (1 or 2). Both versions are always readable; existing V2 is never
+   * demoted. Enable 2 only when all active readers and intended rollback binaries understand V2.
+   */
+  @WithDefault(DEFAULT_PREFERRED_INDEX_WRITE_VERSION_STRING)
+  @WithConverter(IndexWriteVersionConverter.class)
+  int preferredIndexWriteVersion();
+
+  /** Validates numeric write preferences when SmallRye constructs the configuration mapping. */
+  final class IndexWriteVersionConverter implements Converter<Integer> {
+    @Override
+    public Integer convert(String value) {
+      int version = Integer.parseInt(value);
+      if (version != 1 && version != 2) {
+        throw new IllegalArgumentException("preferredIndexWriteVersion must be 1 or 2");
+      }
+      return version;
+    }
+  }
+
   String DEFAULT_REFERENCE_PREVIOUS_HEAD_COUNT_STRING = "20";
   int DEFAULT_REFERENCE_PREVIOUS_HEAD_COUNT =
       Integer.parseInt(DEFAULT_REFERENCE_PREVIOUS_HEAD_COUNT_STRING);
@@ -86,6 +112,9 @@ public interface PersistenceParams {
 
   @Value.Check
   default void check() {
+    checkState(
+        preferredIndexWriteVersion() == 1 || preferredIndexWriteVersion() == 2,
+        "preferredIndexWriteVersion must be 1 or 2");
     checkState(bucketizedBulkFetchSize() > 0, "bucketizedBulkFetchSize must be positive");
   }
 
@@ -93,6 +122,12 @@ public interface PersistenceParams {
   interface BuildablePersistenceParams extends PersistenceParams {
     static ImmutableBuildablePersistenceParams.Builder builder() {
       return ImmutableBuildablePersistenceParams.builder();
+    }
+
+    @Override
+    @Value.Default
+    default int preferredIndexWriteVersion() {
+      return DEFAULT_PREFERRED_INDEX_WRITE_VERSION;
     }
 
     @Override

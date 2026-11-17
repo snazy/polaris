@@ -60,7 +60,7 @@ public class TestLazyUpdatableIndex {
   @CsvSource({"0,false", "1,false", "2,false", "0,true", "1,true", "2,true"})
   public void untouchedIndexSkipsDeserializationAndStripeConstruction(
       int stripeCount, boolean optional) {
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     embedded.put(key("embedded"), randomObjId());
     var builder = ImmutableIndexContainer.<ObjRef>builder().embedded(embedded.serialize());
     for (var i = 0; i < stripeCount; i++) {
@@ -95,7 +95,7 @@ public class TestLazyUpdatableIndex {
 
   @Test
   public void repeatedAccessCreatesOneDelegate() {
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var value = randomObjId();
     embedded.put(key("entry"), value);
     var container =
@@ -113,14 +113,14 @@ public class TestLazyUpdatableIndex {
     var hiddenKey = key("hidden");
     var visibleKey = key("visible");
     var value = randomObjId();
-    var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+    var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     stripe.put(hiddenKey, value);
     stripe.put(visibleKey, value);
     var stripeObj =
         persistence.write(
             IndexStripeObj.indexStripeObj(persistence.generateId(), stripe.serialize()),
             IndexStripeObj.class);
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     embedded.add(indexElement(hiddenKey, null));
     var container =
         ImmutableIndexContainer.<ObjRef>builder()
@@ -140,7 +140,7 @@ public class TestLazyUpdatableIndex {
 
   @Test
   public void forwardsReadsAndMutations() {
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var value = randomObjId();
     embedded.put(key("a"), value);
     embedded.put(key("b"), value);
@@ -172,7 +172,7 @@ public class TestLazyUpdatableIndex {
 
   @Test
   public void untouchedOversizedEmbeddedIndexStillSpills() {
-    var embedded = newStoreIndex(OBJ_TEST_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_TEST_SERIALIZER, 1);
     var value = objTestValueOfSize((int) persistence.params().maxEmbeddedIndexSize().asLong() + 1);
     embedded.put(key("oversized"), value);
     var container =

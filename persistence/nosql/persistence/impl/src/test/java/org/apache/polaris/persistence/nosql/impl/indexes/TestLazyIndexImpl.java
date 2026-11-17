@@ -132,7 +132,7 @@ public class TestLazyIndexImpl {
 
   @Test
   public void stateRelated() {
-    var index = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var lazyIndex = lazyStoreIndex(() -> index, null, null, true);
 
     soft.assertThat(lazyIndex.isLoaded()).isFalse();
@@ -168,14 +168,14 @@ public class TestLazyIndexImpl {
 
   @Test
   public void splitByTargetSizeUsesLazyCommonPrefixKeysWithoutSplitting() {
-    var base = newStoreIndex(OBJ_REF_SERIALIZER);
+    var base = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var keyPrefix = "catalog/" + "shared-prefix/".repeat(32);
     for (var i = 0; i < 512; i++) {
       base.put(key(keyPrefix + "table-%03d".formatted(i)), randomObjId());
     }
 
     var serialized = base.serialize();
-    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true);
+    var deserialized = deserializeStoreIndex(serialized, OBJ_REF_SERIALIZER, true, 1);
 
     var lazyIndex =
         lazyStoreIndex(() -> deserialized, deserialized.first(), deserialized.last(), true);
@@ -186,7 +186,7 @@ public class TestLazyIndexImpl {
 
   @Test
   public void firstLastKeyDontLoad() {
-    var index = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var first = key("aaa");
     var last = key("zzz");
     index.add(indexElement(first, randomObjId()));
@@ -225,7 +225,7 @@ public class TestLazyIndexImpl {
 
   @Test
   public void firstLastKeyDoLoadIfNotSpecified() {
-    var index = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var first = key("aaa");
     var last = key("zzz");
     index.add(indexElement(first, randomObjId()));

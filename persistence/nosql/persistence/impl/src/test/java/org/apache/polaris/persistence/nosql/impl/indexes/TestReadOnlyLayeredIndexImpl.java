@@ -37,8 +37,8 @@ public class TestReadOnlyLayeredIndexImpl {
 
   @Test
   public void unsupported() {
-    var index1 = newStoreIndex(OBJ_REF_SERIALIZER);
-    var index2 = newStoreIndex(OBJ_REF_SERIALIZER);
+    var index1 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var index2 = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     var layered = layeredIndex(index1, index2);
 
     soft.assertThatThrownBy(layered::serialize).isInstanceOf(UnsupportedOperationException.class);

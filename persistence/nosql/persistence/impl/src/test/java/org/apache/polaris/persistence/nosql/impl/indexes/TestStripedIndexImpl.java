@@ -87,7 +87,7 @@ public class TestStripedIndexImpl {
                 List.of("b1", "b3"),
                 List.of("b7", "b9"),
                 List.of("c1", "c3"))) {
-          var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+          var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
           keys.forEach(k -> stripe.add(indexElement(key(k), Util.randomObjId())));
           stripes.add(stripe);
         }
@@ -150,7 +150,7 @@ public class TestStripedIndexImpl {
   public void iteratorBoundsReflectModifiedStripes(boolean prefetch) {
     var stripes = new ArrayList<IndexSpi<ObjRef>>();
     for (var k : List.of("a1", "b1", "c1")) {
-      var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+      var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
       stripe.add(indexElement(key(k), Util.randomObjId()));
       stripes.add(stripe);
     }
@@ -190,7 +190,7 @@ public class TestStripedIndexImpl {
     Supplier<List<IndexSpi<ObjRef>>> stripesSupplier =
         () ->
             originalStripesList.stream()
-                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true))
+                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true, 1))
                 .collect(Collectors.toList());
     var firstLastKeys =
         stripesSupplier.get().stream()
@@ -276,7 +276,7 @@ public class TestStripedIndexImpl {
     Supplier<List<IndexSpi<ObjRef>>> stripesSupplier =
         () ->
             originalStripesList.stream()
-                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true))
+                .map(s -> deserializeStoreIndex(s.serialize(), OBJ_REF_SERIALIZER, true, 1))
                 .collect(Collectors.toList());
     var firstLastKeys =
         stripesSupplier.get().stream()
@@ -641,8 +641,8 @@ public class TestStripedIndexImpl {
 
     List<InternalIndexElement<ObjRef>> elements = newArrayList(source.elementIterator());
 
-    var indexEven = newStoreIndex(OBJ_REF_SERIALIZER);
-    var indexOdd = newStoreIndex(OBJ_REF_SERIALIZER);
+    var indexEven = newStoreIndex(OBJ_REF_SERIALIZER, 1);
+    var indexOdd = newStoreIndex(OBJ_REF_SERIALIZER, 1);
 
     for (int i = 0; i < elements.size(); i += 2) {
       indexEven.add(elements.get(i));
@@ -682,7 +682,7 @@ public class TestStripedIndexImpl {
     var from = 0;
     for (var i = 0; i < parts; i++) {
       var to = i < parts - 1 ? from + partSize : size;
-      var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+      var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
       elements.subList(from, to).forEach(stripe::add);
       stripes.add(stripe);
       from = to;

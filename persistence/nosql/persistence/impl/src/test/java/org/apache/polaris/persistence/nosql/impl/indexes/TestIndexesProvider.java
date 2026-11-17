@@ -358,14 +358,14 @@ class TestIndexesProvider {
 
   private static Fixture fixture(int stripeCount) {
     var value = objRef("test", 17, 1);
-    var embedded = newStoreIndex(OBJ_REF_SERIALIZER);
+    var embedded = newStoreIndex(OBJ_REF_SERIALIZER, 1);
     embedded.put(key("embedded"), value);
     var builder = ImmutableIndexContainer.<ObjRef>builder().embedded(embedded.serialize());
     var contents = new TreeMap<IndexKey, ObjRef>();
     contents.put(key("embedded"), value);
     var objects = new HashMap<ObjRef, IndexStripeObj>();
     for (var i = 0; i < stripeCount; i++) {
-      var stripe = newStoreIndex(OBJ_REF_SERIALIZER);
+      var stripe = newStoreIndex(OBJ_REF_SERIALIZER, 1);
       for (var suffix : List.of("a", "m", "z")) {
         var key = key("stripe-" + i + "/" + suffix);
         stripe.put(key, value);
