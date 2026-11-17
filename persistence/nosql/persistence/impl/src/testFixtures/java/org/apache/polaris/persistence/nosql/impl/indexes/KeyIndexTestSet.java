@@ -273,6 +273,11 @@ public interface KeyIndexTestSet<ELEMENT> {
   class Words {
     private static final List<String> WORDS = new ArrayList<>();
 
+    /** Immutable dictionary snapshot for reproducible index populations. */
+    static List<String> words() {
+      return List.copyOf(WORDS);
+    }
+
     static {
       // Word list "generated" via:
       //
